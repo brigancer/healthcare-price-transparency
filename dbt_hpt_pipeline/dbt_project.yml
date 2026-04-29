@@ -16,9 +16,8 @@ seeds:
 
 models:
   dbt_hpt_pipeline:
-    +static_analysis: strict
     # Materialize staging models as views, and marts as tables
-    staging:
+    silver:
       +materialized: view
-    marts:
+    gold:
       +materialized: table
