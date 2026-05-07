@@ -1,0 +1,73 @@
+code,code_type,category,description
+90832,CPT,Evaluation & Management,Psychotherapy 30 min
+90834,CPT,Evaluation & Management,Psychotherapy 45 min
+90837,CPT,Evaluation & Management,Psychotherapy 60 min
+90846,CPT,Evaluation & Management,Family psychotherapy not including patient 50 min
+90847,CPT,Evaluation & Management,Family psychotherapy including patient 50 min
+90853,CPT,Evaluation & Management,Group psychotherapy
+99203,CPT,Evaluation & Management,New patient office or other outpatient visit typically 30 min
+99204,CPT,Evaluation & Management,New patient office or other outpatient visit typically 45 min
+99205,CPT,Evaluation & Management,New patient office or other outpatient visit typically 60 min
+99243,CPT,Evaluation & Management,Patient office consultation typically 40 min
+99244,CPT,Evaluation & Management,Patient office consultation typically 60 min
+99385,CPT,Evaluation & Management,Initial new patient preventive medicine evaluation 18-39 years
+99386,CPT,Evaluation & Management,Initial new patient preventive medicine evaluation 40-64 years
+80048,CPT,Laboratory & Pathology,Basic metabolic panel
+80053,CPT,Laboratory & Pathology,Blood test comprehensive group of blood chemicals
+80055,CPT,Laboratory & Pathology,Obstetric blood test panel
+80061,CPT,Laboratory & Pathology,Blood test lipids cholesterol and triglycerides
+80069,CPT,Laboratory & Pathology,Kidney function panel test
+80076,CPT,Laboratory & Pathology,Liver function blood test panel
+81000,CPT,Laboratory & Pathology,Manual urinalysis non-automated with microscopy
+81001,CPT,Laboratory & Pathology,Manual urinalysis automated with microscopy
+81002,CPT,Laboratory & Pathology,Automated urinalysis non-automated without microscopy
+81003,CPT,Laboratory & Pathology,Automated urinalysis automated without microscopy
+84153,CPT,Laboratory & Pathology,PSA prostate specific antigen total
+84443,CPT,Laboratory & Pathology,Blood test thyroid stimulating hormone TSH
+85025,CPT,Laboratory & Pathology,Complete blood cell count with differential white blood cells automated
+85027,CPT,Laboratory & Pathology,Complete blood count automated
+85610,CPT,Laboratory & Pathology,Blood test clotting time
+85730,CPT,Laboratory & Pathology,Coagulation assessment blood test
+70450,CPT,Radiology,CT scan head or brain without contrast
+70553,CPT,Radiology,MRI scan of brain before and after contrast
+72110,CPT,Radiology,X-Ray lower back minimum four views
+72148,CPT,Radiology,MRI scan of lower spinal canal
+72193,CPT,Radiology,CT scan pelvis with contrast
+73721,CPT,Radiology,MRI scan of leg joint
+74177,CPT,Radiology,CT scan of abdomen and pelvis with contrast
+76700,CPT,Radiology,Ultrasound of abdomen
+76805,CPT,Radiology,Abdominal ultrasound of pregnant uterus greater or equal to 14 weeks single or first fetus
+76830,CPT,Radiology,Ultrasound pelvis through vagina
+77065,CPT,Radiology,Mammography of one breast
+77066,CPT,Radiology,Mammography of both breasts
+77067,CPT,Radiology,Mammography screening bilateral
+216,DRG,Medicine & Surgery,Cardiac valve and other major cardiothoracic procedures with cardiac catheterization with major complications or comorbidities
+460,DRG,Medicine & Surgery,Spinal fusion except cervical without major comorbid conditions or complications
+470,DRG,Medicine & Surgery,Major joint replacement or reattachment of lower extremity without major comorbid conditions or complications
+473,DRG,Medicine & Surgery,Cervical spinal fusion without comorbid conditions or major comorbid conditions or complications
+743,DRG,Medicine & Surgery,Uterine and adnexa procedures for non-malignancy without comorbid conditions or major comorbid conditions or complications
+19120,CPT,Medicine & Surgery,Removal of 1 or more breast growth open procedure
+29826,CPT,Medicine & Surgery,Shaving of shoulder bone using an endoscope
+29881,CPT,Medicine & Surgery,Removal of one knee cartilage using an endoscope
+42820,CPT,Medicine & Surgery,Removal of tonsils and adenoid glands patient younger than age 12
+43235,CPT,Medicine & Surgery,Diagnostic examination of esophagus stomach and/or upper small bowel using an endoscope
+43239,CPT,Medicine & Surgery,Biopsy of the esophagus stomach and/or upper small bowel using an endoscope
+45378,CPT,Medicine & Surgery,Diagnostic examination of large bowel using an endoscope
+45380,CPT,Medicine & Surgery,Biopsy of large bowel using an endoscope
+45385,CPT,Medicine & Surgery,Removal of polyps or growths of large bowel using an endoscope
+45391,CPT,Medicine & Surgery,Ultrasound examination of lower large bowel using an endoscope
+47562,CPT,Medicine & Surgery,Removal of gallbladder using an endoscope
+49505,CPT,Medicine & Surgery,Repair of groin hernia patient age 5 years or older
+55700,CPT,Medicine & Surgery,Biopsy of prostate gland
+55866,CPT,Medicine & Surgery,Surgical removal of prostate and surrounding lymph nodes using an endoscope
+59400,CPT,Medicine & Surgery,Routine obstetric care for vaginal delivery including pre-and post-delivery care
+59510,CPT,Medicine & Surgery,Routine obstetric care for cesarean delivery including pre-and post-delivery care
+59610,CPT,Medicine & Surgery,Routine obstetric care for vaginal delivery after prior cesarean delivery including pre-and post-delivery care
+62323,CPT,Medicine & Surgery,Injection of substance into spinal canal of lower back or sacrum using imaging guidance
+64483,CPT,Medicine & Surgery,Injections of anesthetic and/or steroid drug into lower or sacral spine nerve root using imaging guidance
+66821,CPT,Medicine & Surgery,Removal of recurring cataract in lens capsule using laser
+66984,CPT,Medicine & Surgery,Removal of cataract with insertion of lens
+93000,CPT,Medicine & Surgery,Electrocardiogram routine with interpretation and report
+93452,CPT,Medicine & Surgery,Insertion of catheter into left heart for diagnosis
+95810,CPT,Medicine & Surgery,Sleep study
+97110,CPT,Medicine & Surgery,Physical therapy therapeutic exercise
