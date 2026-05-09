@@ -8,6 +8,7 @@ dependencies = [
     "boto3>=1.43.0",
     "dagster>=1.13.3",
     "dagster-webserver>=1.13.3",
+    "loguru>=0.7.3",
     "polars>=1.40.1",
     "python-dotenv>=1.2.2",
     "requests>=2.33.1",
