@@ -6,12 +6,12 @@ ccn,hospital_name,system,address,city,state,zip,county,hospital_type,hospital_ow
 440006,TRISTAR SKYLINE MEDICAL CENTER,HCA Healthcare / TriStar,3441 DICKERSON PIKE,NASHVILLE,TN,37207,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://www.tristarhealth.com
 440197,TRISTAR SOUTHERN HILLS MEDICAL CENTER,HCA Healthcare / TriStar,391 WALLACE RD,NASHVILLE,TN,37211,DAVIDSON,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com
 440150,TRISTAR SUMMIT MEDICAL CENTER,HCA Healthcare / TriStar,5655 FRIST BLVD,HERMITAGE,TN,37076,DAVIDSON,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com
-440039,VANDERBILT UNIVERSITY MEDICAL CENTER,Vanderbilt Health,1211 MEDICAL CENTER DRIVE,NASHVILLE,TN,37232,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://www.vanderbilthealth.com
+440039,VANDERBILT UNIVERSITY MEDICAL CENTER,Vanderbilt Health,1211 MEDICAL CENTER DRIVE,NASHVILLE,TN,37232,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://www.vumc.org
 440046,TRISTAR HORIZON MEDICAL CENTER,HCA Healthcare / TriStar,111 HIGHWAY 70 EAST,DICKSON,TN,37055,DICKSON,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com
 440065,TRISTAR NORTHCREST MEDICAL CENTER,HCA Healthcare / TriStar,100 NORTHCREST DRIVE,SPRINGFIELD,TN,37172,ROBERTSON,Acute Care Hospitals,Voluntary non-profit - Other,Yes,Y,https://www.tristarhealth.com
 440053,SAINT THOMAS RUTHERFORD HOSPITAL,Ascension Saint Thomas,1700 MEDICAL CENTER PARKWAY,MURFREESBORO,TN,37129,RUTHERFORD,Acute Care Hospitals,Voluntary non-profit - Church,Yes,Y,https://healthcare.ascension.org
 440227,TRISTAR STONECREST MEDICAL CENTER,HCA Healthcare / TriStar,200 STONECREST BOULEVARD,SMYRNA,TN,37167,RUTHERFORD,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com
 440003,HIGHPOINT HEALTH-SUMNER WITH ASCENSION SAINT THOMA,Lifepoint Health / Highpoint,555 HARTSVILLE PIKE,GALLATIN,TN,37066,SUMNER,Acute Care Hospitals,Proprietary,Yes,Y,https://www.mysumnermedical.com
 440194,TRISTAR HENDERSONVILLE MEDICAL CENTER,HCA Healthcare / TriStar,355 NEW SHACKLE ISLAND RD,HENDERSONVILLE,TN,37075,SUMNER,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com
-440029,WILLIAMSON MEDICAL CENTER,Williamson County,4321 CAROTHERS PARKWAY,FRANKLIN,TN,37067,WILLIAMSON,Acute Care Hospitals,Government - Hospital District or Authority,Yes,Y,https://www.williamsonmedicalcenter.org
-440193,VANDERBILT WILSON COUNTY HOSPITAL,Vanderbilt Health,1411 BADDOUR PARKWAY,LEBANON,TN,37087,WILSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://www.vanderbilthealth.com
+440029,WILLIAMSON MEDICAL CENTER,Williamson County,4321 CAROTHERS PARKWAY,FRANKLIN,TN,37067,WILLIAMSON,Acute Care Hospitals,Government - Hospital District or Authority,Yes,Y,https://williamsonhealth.org
+440193,VANDERBILT WILSON COUNTY HOSPITAL,Vanderbilt Health,1411 BADDOUR PARKWAY,LEBANON,TN,37087,WILSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://www.vumc.org

@@ -1,4 +1,5 @@
 # healthcare-price-transparency
+
 End-to-end data engineering pipeline for Nashville hospital price transparency and quality analytics
 
 removed from hospital seed file since CMS rolled St Thomas Midtown into St Thomas West hospital after Baptist merger with Ascesnios St Thomas:

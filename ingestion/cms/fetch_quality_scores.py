@@ -11,47 +11,18 @@ import json
 from loguru import logger
 from datetime import datetime, timezone
 import os
-from pathlib import Path
 
-import boto3
-import polars as pl
 import requests
 from dotenv import load_dotenv
+from ingestion.conns import get_s3_client, load_hospital_ccn_list
 
 load_dotenv()
 # AWS
-AWS_PROFILE = os.getenv("AWS_PROFILE")
-AWS_REGION = os.getenv("AWS_REGION")
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 S3_PREFIX = os.getenv("S3_PREFIX")
 
-
 # CMS API
 CMS_API_BASE_URL = os.getenv("CMS_API_BASE_URL")
-
-
-def get_boto3_session():
-    """Create and return a boto3 session using the specified AWS profile and region."""
-    session = boto3.Session(profile_name=AWS_PROFILE, region_name=AWS_REGION)
-    return session
-
-
-def get_s3_client():
-    """Create and return an S3 client using the specified AWS profile and region."""
-    session = get_boto3_session()
-    s3_client = session.client("s3")
-    return s3_client
-
-
-def load_hospital_ccn_list():
-    """Load the list of hospital CCNs for Nashville MSA hospitals from a local CSV file in the seeds directory."""
-    seed_path = (
-        Path(__file__).parent.parent.parent
-        / "dbt_hpt_pipeline/seeds"
-        / "nashville_msa_hospitals.csv"
-    )
-    hospital_ccn_df = pl.read_csv(seed_path)
-    return hospital_ccn_df["ccn"].cast(pl.Utf8).to_list()
 
 
 def fetch_quality_scores(ccns: list[str]) -> list[dict]:

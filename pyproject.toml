@@ -18,3 +18,6 @@ dependencies = [
 dev = [
     "ruff>=0.15.12",
 ]
+
+[tool.setuptools]
+packages = ["ingestion", "ingestion.cms", "ingestion.mrf"]
