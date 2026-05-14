@@ -40,6 +40,9 @@ def parse_cms_hpt_txt(content: str, domain: str) -> pl.DataFrame:
 
 def build_hospital_name_matrix(mrf_urls: pl.DataFrame, hospitals: pl.DataFrame) -> dict:
     """Fetch MRF URLs for each hospital from each unique domain."""
+    hospitals = hospitals.filter(
+        pl.col("location_name_override").is_null() | pl.col("location_name_override").eq("")
+    )
     hospital_urls = (
         hospitals["hospital_url"]
         .str.replace("https://", "")
@@ -69,6 +72,17 @@ def hospital_mrf_matcher(hospitals: pl.DataFrame, hospital_name_dict: dict, mrf_
     # Build a lookup dictionary for location_name -> mrf_url
     location_to_url = dict(zip(mrf_urls["location_name"].to_list(), mrf_urls["mrf_url"].to_list()))
     matched_hospitals = []
+    exceptions = hospitals.filter(pl.col("location_name_override").is_not_null())
+    for row in exceptions.iter_rows(named=True):
+        try:
+            mrf_url = location_to_url.get(row["location_name_override"])
+            if mrf_url is not None:
+                matched_hospitals.append((row["ccn"], row["hospital_name"], row["location_name_override"], mrf_url))
+                logger.info(f"Matched override hospital '{row['hospital_name']}' to MRF URL: {mrf_url}")
+            else:
+                logger.error(f"MRF URL not found for override '{row['location_name_override']}'")
+        except Exception as e:
+            logger.error(f"Error retrieving MRF URL for override '{row['location_name_override']}': {e}")
     for url, (hospital_ccns, hospital_names, mrf_names, hospital_name_matrix) in hospital_name_dict.items():
         if hospital_name_matrix.size == 0:
             logger.warning(f"No candidates found for domain: {url}")
