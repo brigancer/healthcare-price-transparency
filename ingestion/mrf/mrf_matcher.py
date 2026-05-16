@@ -1,12 +1,9 @@
 """Read MRF discovery files from S3, and match to seed hospitals"""
-import json
 import os
-import re
 from datetime import datetime, timezone
 
 import numpy as np
 import polars as pl
-import requests
 from dotenv import load_dotenv
 from loguru import logger
 from rapidfuzz import fuzz
