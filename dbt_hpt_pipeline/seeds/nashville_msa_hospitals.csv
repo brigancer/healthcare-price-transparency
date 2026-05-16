@@ -1,7 +1,8 @@
-ccn,hospital_name,system,address,city,state,zip,county,hospital_type,hospital_ownership,emergency_services,in_care_compare,hospital_url, mrf_url
+ccn,hospital_name,system,address,city,state,zip,county,hospital_type,hospital_ownership,emergency_services,in_care_compare,hospital_url,mrf_url,location_name_override
 440082,ASCENSION SAINT THOMAS HOSPITAL,Ascension Saint Thomas,"4220 HARDING RD, PO BOX 380",NASHVILLE,TN,37205,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://healthcare.ascension.org
+440133,ASCENSION SAINT THOMAS MIDTOWN HOSPITAL,Ascension Saint Thomas,2000 CHURCH STREET,NASHVILLE,TN,37236,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,N,https://healthcare.ascension.org
 440111,METRO NASHVILLE GENERAL HOSPITAL,Metro Nashville,1818 ALBION STREET,NASHVILLE,TN,37208,DAVIDSON,Acute Care Hospitals,Government - Hospital District or Authority,Yes,Y,https://nashvillegeneral.org
-440218,SAINT THOMAS HOSPITAL FOR SPINAL SURGERY,Ascension Saint Thomas,2011 MURPHY AVENUE,NASHVILLE,TN,37203,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Other,No,Y,https://healthcare.ascension.org
+440218,SAINT THOMAS HOSPITAL FOR SPINAL SURGERY,Ascension Saint Thomas,2011 MURPHY AVENUE,NASHVILLE,TN,37203,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Other,No,Y,https://healthcare.ascension.org,,Ascension Saint Thomas Midtown
 440161,TRISTAR CENTENNIAL MEDICAL CENTER,HCA Healthcare / TriStar,2300 PATTERSON STREET,NASHVILLE,TN,37203,DAVIDSON,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com
 440006,TRISTAR SKYLINE MEDICAL CENTER,HCA Healthcare / TriStar,3441 DICKERSON PIKE,NASHVILLE,TN,37207,DAVIDSON,Acute Care Hospitals,Voluntary non-profit - Private,Yes,Y,https://www.tristarhealth.com
 440197,TRISTAR SOUTHERN HILLS MEDICAL CENTER,HCA Healthcare / TriStar,391 WALLACE RD,NASHVILLE,TN,37211,DAVIDSON,Acute Care Hospitals,Proprietary,Yes,Y,https://www.tristarhealth.com

@@ -43,8 +43,15 @@ def fetch_and_upload_mrf_urls(hospitals: pl.DataFrame, s3_client) -> None:
         
         s3_client.put_object(Bucket=S3_BUCKET_NAME, Key=key, Body=response.text)
         logger.info(f"Uploaded {domain} MRF index to s3://{S3_BUCKET_NAME}/{key}")
-
-
+        existing = s3_client.list_objects_v2(
+            Bucket=S3_BUCKET_NAME,
+            Prefix=f"{S3_PREFIX}/bronze/mrf_discovery/{domain}"
+        ).get("Contents", [])
+        existing.sort(key=lambda x: x["LastModified"], reverse=True)
+        for old in existing[3:]:
+            s3_client.delete_object(Bucket=S3_BUCKET_NAME, Key=old["Key"])
+            logger.info(f"Deleted old MRF discovery file: {old['Key']}")
+    
 def main():
     hospitals = load_hospital_seed()
     s3_client = get_s3_client()
