@@ -1,0 +1,10 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: "Raw files ingested from hospital MRF sources and CMS API"
+    tables:
+      - name: mrf_raw
+        description: "Raw MRF files for all 17 Nashville MSA hospitals (CSV, JSON, ZIP). Volume path: /Volumes/workspace/hpt_dev/bronze_mrf_raw"
+      - name: cms_quality
+        description: "CMS Care Compare quality scores for Nashville MSA hospitals. Volume path: /Volumes/workspace/hpt_dev/bronze_cms_quality"
