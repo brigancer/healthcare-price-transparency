@@ -61,6 +61,11 @@ def list_volume_files(spark, path: str) -> list:
     return [row.path for row in files_df.select("path").collect()]
 
 
+def to_local_path(file_path: str) -> str:
+    """Convert dbfs:/ path to local /dbfs/ path for Python file I/O."""
+    return file_path.replace("dbfs:/", "/dbfs/", 1)
+
+
 def detect_compression(file_path: str) -> str:
     """Detect compression type by reading magic bytes from volume path."""
     with open(file_path, "rb") as f:
@@ -470,7 +475,7 @@ def model(dbt, spark):
 
     # Determine which CCNs are already in the Silver table
     already_processed_ccns = set()
-    if dbt.is_incremental():
+    if dbt.is_incremental:
         already_processed_ccns = {
             row.ccn
             for row in spark.sql(f"select distinct ccn from {dbt.this}").collect()
@@ -487,7 +492,8 @@ def model(dbt, spark):
 
     for file_path in all_file_paths:
         ccn = extract_ccn(file_path)
-
+        local_path = to_local_path(file_path)
+        
         if ccn in already_processed_ccns:
             logger.info(f"Skipping already processed CCN: {ccn}")
             skipped.append(ccn)
@@ -497,16 +503,16 @@ def model(dbt, spark):
             logger.info(f"Processing CCN: {ccn}, file: {file_path}")
 
             # Step 1 — detect compression
-            compression = detect_compression(file_path)
+            compression = detect_compression(local_path)
             logger.info(f"CCN {ccn} — compression detected: {compression}")
 
             # Step 2 — decompress and read into Spark
             if compression == "gzip":
-                raw_content = decompress_gzip(file_path)
+                raw_content = decompress_gzip(local_path)
                 raw_df = read_csv_from_string(spark, raw_content, ccn)
                 file_format = "csv"
             elif compression == "zip":
-                raw_content = decompress_zip(file_path)
+                raw_content = decompress_zip(local_path)
                 raw_df = read_csv_from_string(spark, raw_content, ccn)
                 file_format = "csv"
             elif file_path.endswith(".json"):
