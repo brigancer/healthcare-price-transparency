@@ -5,6 +5,7 @@ import logging
 import re
 import zipfile
 
+import polars as pl
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame
 
@@ -61,14 +62,20 @@ def list_volume_files(spark, path: str) -> list[str]:
     return [row.path for row in files_df.select("path").collect()]
 
 
-def read_file_bytes(spark, file_path: str) -> bytes:
-    """Read a single file from the volume into memory as bytes."""
+def read_magic_bytes(spark, file_path: str) -> bytes:
+    """Read first 4 bytes of a file for compression detection."""
     row = (
         spark.read.format("binaryFile")
         .load(file_path)
-        .select("content")
+        .select(F.col("content").substr(1, 4).alias("magic"))
         .first()
     )
+    return row.magic
+
+
+def read_file_bytes(spark, file_path: str) -> bytes:
+    """Read a single file from the volume into memory as bytes."""
+    row = spark.read.format("binaryFile").load(file_path).select("content").first()
     return row.content
 
 
@@ -139,12 +146,6 @@ def extract_json_field_names(json_source_df: DataFrame) -> tuple:
     return charge_setting_fields, payer_fields
 
 
-def decompress_gzip(file_bytes: bytes) -> str:
-    """Decompress gzip bytes and return contents as string."""
-    with gzip.open(io.BytesIO(file_bytes), "rt", encoding="utf-8") as f:
-        return f.read()
-
-
 def decompress_zip(file_bytes: bytes) -> str:
     """Extract CSV from a ZIP archive and return contents as string."""
     with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
@@ -158,15 +159,12 @@ def decompress_zip(file_bytes: bytes) -> str:
 
 def read_csv_from_string(spark, content: str, ccn: str) -> DataFrame:
     """
-    Parse a CSV string into a Spark DataFrame.
+    Parse a CSV string into a Spark DataFrame using Polars.
+    Uses StringIO to avoid writing temp files.
     Skips 2 metadata rows, keeps only ASCII columns.
     """
-    lines = content.splitlines()
-    header = lines[2]
-    data_lines = lines[3:]
-    csv_content = "\n".join([header] + data_lines)
-    rdd = spark.sparkContext.parallelize([csv_content])
-    source_df = spark.read.option("header", "true").csv(rdd)
+    polars_df = pl.read_csv(io.StringIO(content), skip_rows=2, infer_schema=False)
+    source_df = spark.createDataFrame(polars_df.to_pandas())
     clean_col_names = [
         col_name
         for col_name in source_df.columns
@@ -194,9 +192,33 @@ def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
     return source_df.withColumn("ccn", F.lit(ccn))
 
 
+def read_gzip_csv(spark, file_path: str, ccn: str) -> DataFrame:
+    """
+    Read a gzip-compressed CSV MRF file using Polars.
+    Polars handles gzip decompression and metadata row skipping natively.
+    Converts to Spark DataFrame via pandas for serverless compatibility.
+    """
+    local_path = file_path.replace("dbfs:/", "/dbfs/", 1)
+    polars_df = pl.read_csv(local_path, skip_rows=2, infer_schema=False)
+    source_df = spark.createDataFrame(polars_df.to_pandas())
+    clean_col_names = [
+        col_name
+        for col_name in source_df.columns
+        if col_name.isascii() and not col_name.startswith("_")
+    ]
+    source_df = source_df.select(clean_col_names)
+    return source_df.withColumn("ccn", F.lit(ccn))
+
+
 def read_json(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a JSON MRF file using multiLine mode."""
     source_df = spark.read.json(file_path, multiLine=True)
+    return source_df.withColumn("ccn", F.lit(ccn))
+
+
+def read_gzip_json(spark, file_path: str, ccn: str) -> DataFrame:
+    """Read a gzip-compressed JSON MRF file using Spark native decompression."""
+    source_df = spark.read.option("compression", "gzip").json(file_path, multiLine=True)
     return source_df.withColumn("ccn", F.lit(ccn))
 
 
@@ -464,6 +486,7 @@ def model(dbt, spark):
         materialized="incremental",
         unique_key="ccn",
         submission_method="serverless_cluster",
+        packages=["polars>=1.40.1"],
     )
 
     logging.basicConfig(level=logging.INFO)
@@ -506,14 +529,14 @@ def model(dbt, spark):
                 raw_df = read_json(spark, file_path, ccn)
                 file_format = "json"
             else:
-                file_bytes = read_file_bytes(spark, file_path)
-                compression = detect_compression(file_bytes)
+                magic = read_magic_bytes(spark, file_path)
+                compression = detect_compression(magic)
                 logger.info(f"CCN {ccn} — compression detected: {compression}")
 
                 if compression == "gzip":
-                    raw_content = decompress_gzip(file_bytes)
-                    raw_df = read_csv_from_string(spark, raw_content, ccn)
+                    raw_df = read_gzip_csv(spark, file_path, ccn)
                 elif compression == "zip":
+                    file_bytes = read_file_bytes(spark, file_path)
                     raw_content = decompress_zip(file_bytes)
                     raw_df = read_csv_from_string(spark, raw_content, ccn)
                 else:
@@ -570,6 +593,11 @@ def model(dbt, spark):
 
     # Filter to shoppable services
     shoppable_df = dbt.ref("shoppable_services")
+
+    # Cast ccn to string before join to prevent BIGINT inference
+    hospital_pricing_union_df = hospital_pricing_union_df.withColumn(
+        "ccn", F.col("ccn").cast("string")
+    )
 
     silver_mrf_prices_df = hospital_pricing_union_df.join(
         shoppable_df,
