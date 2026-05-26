@@ -50,29 +50,24 @@ FIXED_COLS_RENAME = {
 }
 
 
-def list_volume_files(spark, path: str) -> list:
-    """List all files in the bronze volume."""
+def read_volume_files(spark, path: str) -> list[tuple[str, bytes]]:
+    """Read all files from the bronze volume, returning (path, bytes) tuples."""
     files_df = (
         spark.read.format("binaryFile")
         .option("pathGlobFilter", "*")
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    return [row.path for row in files_df.select("path").collect()]
+    return [
+        (row.path, row.content) for row in files_df.select("path", "content").collect()
+    ]
 
 
-def to_local_path(file_path: str) -> str:
-    """Convert dbfs:/ path to local /dbfs/ path for Python file I/O."""
-    return file_path.replace("dbfs:/", "/dbfs/", 1)
-
-
-def detect_compression(file_path: str) -> str:
-    """Detect compression type by reading magic bytes from volume path."""
-    with open(file_path, "rb") as f:
-        magic = f.read(2)
-    if magic == b"\x1f\x8b":
+def detect_compression(file_bytes: bytes) -> str:
+    """Detect compression type by inspecting magic bytes."""
+    if file_bytes[:2] == b"\x1f\x8b":
         return "gzip"
-    if file_path.endswith(".zip"):
+    if file_bytes[:4] == b"PK\x03\x04":
         return "zip"
     return "none"
 
@@ -135,24 +130,20 @@ def extract_json_field_names(json_source_df: DataFrame) -> tuple:
     return charge_setting_fields, payer_fields
 
 
-def decompress_gzip(file_path: str) -> str:
-    """Decompress a gzip file and return contents as string."""
-    with open(file_path, "rb") as f:
-        compressed = f.read()
-    with gzip.open(io.BytesIO(compressed), "rt", encoding="utf-8") as f:
+def decompress_gzip(file_bytes: bytes) -> str:
+    """Decompress gzip bytes and return contents as string."""
+    with gzip.open(io.BytesIO(file_bytes), "rt", encoding="utf-8") as f:
         return f.read()
 
 
-def decompress_zip(file_path: str) -> str:
+def decompress_zip(file_bytes: bytes) -> str:
     """Extract CSV from a ZIP archive and return contents as string."""
-    with open(file_path, "rb") as f:
-        zip_bytes = f.read()
-    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+    with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
         csv_files = [
             name for name in zf.namelist() if name.endswith(".csv") and "/" not in name
         ]
         if not csv_files:
-            raise ValueError(f"No CSV found inside ZIP: {file_path}")
+            raise ValueError("No CSV found inside ZIP archive")
         return zf.read(csv_files[0]).decode("utf-8")
 
 
@@ -485,15 +476,14 @@ def model(dbt, spark):
         )
 
     # List all files in bronze volume
-    all_file_paths = list_volume_files(spark, volume_path)
-    logger.info(f"Found {len(all_file_paths)} files in volume")
+    all_volume_files = read_volume_files(spark, volume_path)
+    logger.info(f"Found {len(all_volume_files)} files in volume")
 
     hospital_df_list = []
 
-    for file_path in all_file_paths:
+    for file_path, file_bytes in all_volume_files:
         ccn = extract_ccn(file_path)
-        local_path = to_local_path(file_path)
-        
+
         if ccn in already_processed_ccns:
             logger.info(f"Skipping already processed CCN: {ccn}")
             skipped.append(ccn)
@@ -503,16 +493,16 @@ def model(dbt, spark):
             logger.info(f"Processing CCN: {ccn}, file: {file_path}")
 
             # Step 1 — detect compression
-            compression = detect_compression(local_path)
+            compression = detect_compression(file_bytes)
             logger.info(f"CCN {ccn} — compression detected: {compression}")
 
             # Step 2 — decompress and read into Spark
             if compression == "gzip":
-                raw_content = decompress_gzip(local_path)
+                raw_content = decompress_gzip(file_bytes)
                 raw_df = read_csv_from_string(spark, raw_content, ccn)
                 file_format = "csv"
             elif compression == "zip":
-                raw_content = decompress_zip(local_path)
+                raw_content = decompress_zip(file_bytes)
                 raw_df = read_csv_from_string(spark, raw_content, ccn)
                 file_format = "csv"
             elif file_path.endswith(".json"):
