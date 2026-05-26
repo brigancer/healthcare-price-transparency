@@ -5,7 +5,6 @@ import re
 import subprocess
 import zipfile
 
-import polars as pl
 import pyspark.sql.functions as F
 from pyspark.sql import DataFrame
 
@@ -88,13 +87,13 @@ def detect_compression(file_bytes: bytes) -> str:
     return "none"
 
 
-def detect_csv_shape(source_df: DataFrame) -> str:
+def detect_csv_shape(mrf_raw_prices: DataFrame) -> str:
     """
     Detect whether a CSV DataFrame is wide or long format.
     Wide: payer columns follow metric|payer|plan pattern.
     Long: has explicit payer_name column.
     """
-    col_names = set(source_df.columns)
+    col_names = set(mrf_raw_prices.columns)
     if "payer_name" in col_names:
         return "long"
     payer_pattern_cols = [
@@ -113,12 +112,12 @@ def extract_ccn(file_path: str) -> str:
     return match.group(1) if match else "unknown"
 
 
-def extract_json_field_names(json_source_df: DataFrame) -> tuple:
+def extract_json_field_names(mrf_json_prices: DataFrame) -> tuple:
     """
     Dynamically extract field names from nested JSON schema.
     Returns (charge_setting_fields, payer_fields) as sets of strings.
     """
-    schema_dict = json_lib.loads(json_source_df.schema.json())
+    schema_dict = json_lib.loads(mrf_json_prices.schema.json())
 
     sci_fields = next(
         field
@@ -163,20 +162,22 @@ def read_csv_from_string(spark, content: str, ccn: str) -> DataFrame:
     Uses StringIO to avoid writing temp files.
     Skips 2 metadata rows, keeps only ASCII columns.
     """
-    polars_df = pl.read_csv(io.StringIO(content), skip_rows=2, infer_schema=False)
-    source_df = spark.createDataFrame(polars_df.to_pandas())
+    import polars as pl
+    mrf_raw_prices = spark.createDataFrame(
+        pl.read_csv(io.StringIO(content), skip_rows=2, infer_schema=False).to_pandas()
+    )
     clean_col_names = [
         col_name
-        for col_name in source_df.columns
+        for col_name in mrf_raw_prices.columns
         if col_name.isascii() and not col_name.startswith("_")
     ]
-    source_df = source_df.select(clean_col_names)
-    return source_df.withColumn("ccn", F.lit(ccn))
+    mrf_raw_prices = mrf_raw_prices.select(clean_col_names)
+    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
 def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a plain uncompressed CSV file."""
-    source_df = (
+    mrf_raw_prices = (
         spark.read.format("csv")
         .option("header", "true")
         .option("skipRows", 2)
@@ -185,11 +186,11 @@ def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
     )
     clean_col_names = [
         col_name
-        for col_name in source_df.columns
+        for col_name in mrf_raw_prices.columns
         if col_name.isascii() and not col_name.startswith("_")
     ]
-    source_df = source_df.select(clean_col_names)
-    return source_df.withColumn("ccn", F.lit(ccn))
+    mrf_raw_prices = mrf_raw_prices.select(clean_col_names)
+    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
 def read_gzip_csv(spark, file_path: str, ccn: str) -> DataFrame:
@@ -198,31 +199,33 @@ def read_gzip_csv(spark, file_path: str, ccn: str) -> DataFrame:
     Polars handles gzip decompression and metadata row skipping natively.
     Converts to Spark DataFrame via pandas for serverless compatibility.
     """
+    import polars as pl
     local_path = file_path.replace("dbfs:/", "/dbfs/", 1)
-    polars_df = pl.read_csv(local_path, skip_rows=2, infer_schema=False)
-    source_df = spark.createDataFrame(polars_df.to_pandas())
+    mrf_raw_prices = spark.createDataFrame(
+        pl.read_csv(local_path, skip_rows=2, infer_schema=False).to_pandas()
+    )
     clean_col_names = [
         col_name
-        for col_name in source_df.columns
+        for col_name in mrf_raw_prices.columns
         if col_name.isascii() and not col_name.startswith("_")
     ]
-    source_df = source_df.select(clean_col_names)
-    return source_df.withColumn("ccn", F.lit(ccn))
+    mrf_raw_prices = mrf_raw_prices.select(clean_col_names)
+    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
 def read_json(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a JSON MRF file using multiLine mode."""
-    source_df = spark.read.json(file_path, multiLine=True)
-    return source_df.withColumn("ccn", F.lit(ccn))
+    mrf_raw_prices = spark.read.json(file_path, multiLine=True)
+    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
 def read_gzip_json(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a gzip-compressed JSON MRF file using Spark native decompression."""
-    source_df = spark.read.option("compression", "gzip").json(file_path, multiLine=True)
-    return source_df.withColumn("ccn", F.lit(ccn))
+    mrf_raw_prices = spark.read.option("compression", "gzip").json(file_path, multiLine=True)
+    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
-def transform_wide_csv(wide_source_df: DataFrame) -> DataFrame:
+def transform_wide_csv(wide_mrf_prices: DataFrame) -> DataFrame:
     """
     Unpivot a wide CSV DataFrame into canonical Silver schema.
     Each service row becomes one row per payer/plan combination.
@@ -231,7 +234,7 @@ def transform_wide_csv(wide_source_df: DataFrame) -> DataFrame:
     to comply with Delta Lake column name requirements.
     """
     payer_cols = [
-        col_name for col_name in wide_source_df.columns if col_name not in FIXED_COLS
+        col_name for col_name in wide_mrf_prices.columns if col_name not in FIXED_COLS
     ]
 
     payer_plan_keys = set()
@@ -246,7 +249,7 @@ def transform_wide_csv(wide_source_df: DataFrame) -> DataFrame:
         )
 
     service_cols = [
-        col_name for col_name in wide_source_df.columns if col_name in FIXED_COLS
+        col_name for col_name in wide_mrf_prices.columns if col_name in FIXED_COLS
     ]
 
     payer_slices = []
@@ -274,27 +277,27 @@ def transform_wide_csv(wide_source_df: DataFrame) -> DataFrame:
         }
 
         for canonical_name, raw_col_name in col_map.items():
-            if raw_col_name in wide_source_df.columns:
+            if raw_col_name in wide_mrf_prices.columns:
                 select_exprs.append(F.col(f"`{raw_col_name}`").alias(canonical_name))
             else:
                 select_exprs.append(F.lit(None).alias(canonical_name))
 
-        payer_slices.append(wide_source_df.select(select_exprs))
+        payer_slices.append(wide_mrf_prices.select(select_exprs))
 
-    unpivoted_charges_df = payer_slices[0]
-    for payer_slice_df in payer_slices[1:]:
-        unpivoted_charges_df = unpivoted_charges_df.unionByName(payer_slice_df)
+    mrf_payer_charges = payer_slices[0]
+    for payer_slice in payer_slices[1:]:
+        mrf_payer_charges = mrf_payer_charges.unionByName(payer_slice)
 
-    return unpivoted_charges_df
+    return mrf_payer_charges
 
 
-def transform_long_csv(long_source_df: DataFrame) -> DataFrame:
+def transform_long_csv(long_mrf_prices: DataFrame) -> DataFrame:
     """
     Map a long format CSV DataFrame to canonical Silver schema.
     Already one row per payer/plan — dynamically maps columns
     that are present, fills null for missing optional columns.
     """
-    col_names = set(long_source_df.columns)
+    col_names = set(long_mrf_prices.columns)
 
     def get_col(raw_name: str, canonical_name: str):
         """Return column expression — mapped if present, null if missing."""
@@ -309,7 +312,7 @@ def transform_long_csv(long_source_df: DataFrame) -> DataFrame:
     else:
         payer_notes_expr = F.lit(None).cast("string")
 
-    long_charges_df = long_source_df.select(
+    mrf_payer_charges = long_mrf_prices.select(
         F.col("ccn"),
         F.col("description"),
         get_col("code|1", "code_1"),
@@ -343,20 +346,20 @@ def transform_long_csv(long_source_df: DataFrame) -> DataFrame:
         get_col("count", "count"),
     )
 
-    return long_charges_df
+    return mrf_payer_charges
 
 
-def transform_json(json_source_df: DataFrame) -> DataFrame:
+def transform_json(mrf_json_prices: DataFrame) -> DataFrame:
     """
     Flatten nested JSON MRF structure to canonical Silver schema.
     Explodes three levels:
-        standard_charge_information → services_df
-        standard_charges            → charge_settings_df
-        payers_information          → json_charges_df
+        standard_charge_information → mrf_services
+        standard_charges            → mrf_charge_settings
+        payers_information          → mrf_payer_charges
     Dynamically detects available fields at each level.
     Up to 4 codes extracted — missing indices return null safely.
     """
-    charge_setting_fields, payer_fields = extract_json_field_names(json_source_df)
+    charge_setting_fields, payer_fields = extract_json_field_names(mrf_json_prices)
 
     def get_charge_field(raw_name: str, canonical_name: str):
         """Return charge_setting field — mapped if present, null if missing."""
@@ -370,7 +373,7 @@ def transform_json(json_source_df: DataFrame) -> DataFrame:
             return F.col(f"payer.{raw_name}").alias(canonical_name)
         return F.lit(None).cast("string").alias(canonical_name)
 
-    services_df = json_source_df.select(
+    mrf_services = mrf_json_prices.select(
         F.col("ccn"), F.explode("standard_charge_information").alias("service")
     ).select(
         F.col("ccn"),
@@ -386,7 +389,7 @@ def transform_json(json_source_df: DataFrame) -> DataFrame:
         F.col("service.standard_charges").alias("standard_charges"),
     )
 
-    charge_settings_df = services_df.select(
+    mrf_charge_settings = mrf_services.select(
         F.col("ccn"),
         F.col("description"),
         F.col("code_1"),
@@ -422,7 +425,7 @@ def transform_json(json_source_df: DataFrame) -> DataFrame:
         F.col("charge_setting.payers_information").alias("payers_information"),
     )
 
-    json_charges_df = charge_settings_df.select(
+    mrf_payer_charges = mrf_charge_settings.select(
         F.col("ccn"),
         F.col("description"),
         F.col("code_1"),
@@ -478,7 +481,7 @@ def transform_json(json_source_df: DataFrame) -> DataFrame:
         get_payer_field("count", "count"),
     )
 
-    return json_charges_df
+    return mrf_payer_charges
 
 
 def model(dbt, spark):
@@ -512,7 +515,7 @@ def model(dbt, spark):
     all_file_paths = list_volume_files(spark, volume_path)
     logger.info(f"Found {len(all_file_paths)} files in volume")
 
-    hospital_df_list = []
+    hospital_payer_prices_list = []
 
     for file_path in all_file_paths:
         ccn = extract_ccn(file_path)
@@ -527,7 +530,7 @@ def model(dbt, spark):
 
             # Step 1 — route by file type
             if file_path.endswith(".json"):
-                raw_df = read_json(spark, file_path, ccn)
+                mrf_raw_prices = read_json(spark, file_path, ccn)
                 file_format = "json"
             else:
                 magic = read_magic_bytes(spark, file_path)
@@ -535,37 +538,37 @@ def model(dbt, spark):
                 logger.info(f"CCN {ccn} — compression detected: {compression}")
 
                 if compression == "gzip":
-                    raw_df = read_gzip_csv(spark, file_path, ccn)
+                    mrf_raw_prices = read_gzip_csv(spark, file_path, ccn)
                 elif compression == "zip":
                     file_bytes = read_file_bytes(spark, file_path)
                     raw_content = decompress_zip(file_bytes)
-                    raw_df = read_csv_from_string(spark, raw_content, ccn)
+                    mrf_raw_prices = read_csv_from_string(spark, raw_content, ccn)
                 else:
-                    raw_df = read_plain_csv(spark, file_path, ccn)
+                    mrf_raw_prices = read_plain_csv(spark, file_path, ccn)
                 file_format = "csv"
 
             logger.info(f"CCN {ccn} — file format: {file_format}")
 
             # Step 2 — detect shape and transform
             if file_format == "json":
-                transformed_df = transform_json(raw_df)
+                hospital_payer_prices = transform_json(mrf_raw_prices)
             else:
-                csv_shape = detect_csv_shape(raw_df)
+                csv_shape = detect_csv_shape(mrf_raw_prices)
                 logger.info(f"CCN {ccn} — CSV shape detected: {csv_shape}")
 
                 if csv_shape == "wide":
-                    transformed_df = transform_wide_csv(raw_df)
+                    hospital_payer_prices = transform_wide_csv(mrf_raw_prices)
                 elif csv_shape == "long":
-                    transformed_df = transform_long_csv(raw_df)
+                    hospital_payer_prices = transform_long_csv(mrf_raw_prices)
                 else:
                     logger.warning(
                         f"CCN {ccn} — unknown CSV shape, skipping. "
-                        f"Columns: {raw_df.columns}"
+                        f"Columns: {mrf_raw_prices.columns}"
                     )
                     skipped.append(ccn)
                     continue
 
-            hospital_df_list.append(transformed_df)
+            hospital_payer_prices_list.append(hospital_payer_prices)
             processed.append(ccn)
             logger.info(f"CCN {ccn} — successfully transformed")
 
@@ -582,33 +585,33 @@ def model(dbt, spark):
         f"failed: {failed}"
     )
 
-    if not hospital_df_list:
+    if not hospital_payer_prices_list:
         raise ValueError(
             f"No hospitals successfully processed. Failed: {failed}, Skipped: {skipped}"
         )
 
     # Union all hospital DataFrames
-    hospital_pricing_union_df = hospital_df_list[0]
-    for hospital_df in hospital_df_list[1:]:
-        hospital_pricing_union_df = hospital_pricing_union_df.unionByName(hospital_df)
+    unioned_hospital_payer_prices = hospital_payer_prices_list[0]
+    for hospital_payer_prices in hospital_payer_prices_list[1:]:
+        unioned_hospital_payer_prices = unioned_hospital_payer_prices.unionByName(hospital_payer_prices)
 
     # Filter to shoppable services
     shoppable_df = dbt.ref("shoppable_services")
 
     # Cast ccn to string before join to prevent BIGINT inference
-    hospital_pricing_union_df = hospital_pricing_union_df.withColumn(
+    unioned_hospital_payer_prices = unioned_hospital_payer_prices.withColumn(
         "ccn", F.col("ccn").cast("string")
     )
 
-    silver_mrf_prices_df = hospital_pricing_union_df.join(
+    silver_mrf_prices = unioned_hospital_payer_prices.join(
         shoppable_df,
-        (hospital_pricing_union_df.code_1 == shoppable_df.code)
-        | (hospital_pricing_union_df.code_2 == shoppable_df.code)
-        | (hospital_pricing_union_df.code_3 == shoppable_df.code)
-        | (hospital_pricing_union_df.code_4 == shoppable_df.code),
+        (unioned_hospital_payer_prices.code_1 == shoppable_df.code)
+        | (unioned_hospital_payer_prices.code_2 == shoppable_df.code)
+        | (unioned_hospital_payer_prices.code_3 == shoppable_df.code)
+        | (unioned_hospital_payer_prices.code_4 == shoppable_df.code),
         how="inner",
     ).drop(shoppable_df.code)
 
-    logger.info(f"Final Silver table row count: {silver_mrf_prices_df.count()}")
+    logger.info(f"Final Silver table row count: {silver_mrf_prices.count()}")
 
-    return silver_mrf_prices_df
+    return silver_mrf_prices
