@@ -12,7 +12,7 @@ clean-targets:
 seeds:
   # Builds seeds into '<your_schema_name>_raw'
   dbt_hpt_pipeline:
-    +schema: raw
+    +schema: seeds
 
 models:
   dbt_hpt_pipeline:
