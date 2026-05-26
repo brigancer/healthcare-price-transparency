@@ -1,8 +1,8 @@
-import gzip
 import io
 import json as json_lib
 import logging
 import re
+import subprocess
 import zipfile
 
 import polars as pl
@@ -486,8 +486,9 @@ def model(dbt, spark):
         materialized="incremental",
         unique_key="ccn",
         submission_method="serverless_cluster",
-        packages=["polars>=1.40.1"],
     )
+
+    subprocess.run(["pip", "install", "polars>=1.40.1"], check=True)
 
     logging.basicConfig(level=logging.INFO)
     volume_path = "/Volumes/workspace/hpt_dev/bronze_mrf_raw"
