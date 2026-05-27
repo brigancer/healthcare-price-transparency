@@ -663,6 +663,6 @@ def model(dbt, spark):
             col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
         )
 
-    logger.info(f"Final Silver table row count: {silver_mrf_prices.count()}")
-
+    logger.info("Silver schema enforcement complete")
+    
     return silver_mrf_prices
