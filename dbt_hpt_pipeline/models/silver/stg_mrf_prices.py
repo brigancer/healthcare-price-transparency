@@ -223,7 +223,7 @@ def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
         spark.read.format("csv")
         .option("header", "true")
         .option("skipRows", 2)
-        .option("inferSchema", "true")
+        .option("inferSchema", "false")
         .load(file_path)
     )
     clean_col_names = [
