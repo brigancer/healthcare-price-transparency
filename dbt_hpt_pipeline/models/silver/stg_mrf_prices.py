@@ -665,4 +665,5 @@ def model(dbt, spark):
 
     logger.info("Silver schema enforcement complete")
     
+    spark.conf.set("spark.sql.ansi.enabled", "false")
     return silver_mrf_prices
