@@ -656,7 +656,7 @@ def model(dbt, spark):
     # Enforce final Silver schema types
     for col_name in STRING_COLS:
         silver_mrf_prices = silver_mrf_prices.withColumn(
-            col_name, F.col(col_name).cast("string")
+            col_name, F.expr(f"CAST(`{col_name}` AS STRING)")
         )
     for col_name in NUMERIC_COLS:
         silver_mrf_prices = silver_mrf_prices.withColumn(
