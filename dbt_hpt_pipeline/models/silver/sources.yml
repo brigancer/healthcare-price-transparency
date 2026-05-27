@@ -8,3 +8,8 @@ sources:
         description: "Raw MRF files for all 17 Nashville MSA hospitals (CSV, JSON, ZIP). Volume path: /Volumes/workspace/hpt_dev/bronze_mrf_raw"
       - name: cms_quality
         description: "CMS Care Compare quality scores for Nashville MSA hospitals. Volume path: /Volumes/workspace/hpt_dev/bronze_cms_quality"
+  - name: silver
+    description: "Silver layer tables written by standalone transform scripts"
+    tables:
+      - name: mrf_prices_silver
+        description: "MRF prices for all 17 Nashville MSA hospitals, transformed to canonical Silver schema and filtered to CMS shoppable services. Written by transform/mrf/mrf_transform.py"

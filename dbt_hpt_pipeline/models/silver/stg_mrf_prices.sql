@@ -31,7 +31,7 @@ with mrf_prices as (
         `10th_percentile`,
         `90th_percentile`,
         count
-    from workspace.hpt_dev.stg_mrf_prices
+    from workspace.hpt_dev.mrf_prices_silver
 )
 
 select

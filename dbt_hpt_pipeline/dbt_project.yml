@@ -15,7 +15,7 @@ seeds:
 
 models:
   dbt_hpt_pipeline:
-    # Silver models declare their own materialization in dbt.config()
-    # Gold models are materialized as tables
+    silver:
+      +materialized: table
     gold:
       +materialized: table
