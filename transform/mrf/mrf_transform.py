@@ -3,8 +3,10 @@ import io
 import json as json_lib
 import os
 import re
+import time
 import zipfile
 
+import polars as pl
 import pyspark.sql.functions as F
 from databricks.connect import DatabricksSession
 from dotenv import load_dotenv
@@ -13,6 +15,9 @@ from pyspark.sql import DataFrame
 from tqdm import tqdm
 
 load_dotenv()
+
+logger.remove()
+logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True)
 
 FIXED_COLS = {
     "description",
@@ -207,8 +212,6 @@ def read_csv_from_string(spark, content: str, ccn: str) -> DataFrame:
     Uses StringIO to avoid writing temp files.
     Skips 2 metadata rows, keeps only ASCII columns.
     """
-    import polars as pl
-
     mrf_raw_prices = spark.createDataFrame(
         pl.read_csv(io.StringIO(content), skip_rows=2, infer_schema=False).to_pandas()
     )
@@ -541,12 +544,13 @@ def write_hospital_to_silver(
     and write a single hospital's data to the Silver table.
     First hospital uses overwrite; all subsequent use append.
     """
-    silver_hospital_prices = hospital_payer_prices.join(
+    hospital_prices_aliased = hospital_payer_prices.alias("hospital_prices")
+    silver_hospital_prices = hospital_prices_aliased.join(
         shoppable_codes,
-        (hospital_payer_prices.code_1 == shoppable_codes.code)
-        | (hospital_payer_prices.code_2 == shoppable_codes.code)
-        | (hospital_payer_prices.code_3 == shoppable_codes.code)
-        | (hospital_payer_prices.code_4 == shoppable_codes.code),
+        (F.col("hospital_prices.code_1") == shoppable_codes.code)
+        | (F.col("hospital_prices.code_2") == shoppable_codes.code)
+        | (F.col("hospital_prices.code_3") == shoppable_codes.code)
+        | (F.col("hospital_prices.code_4") == shoppable_codes.code),
         how="left_semi",
     )
 
@@ -599,6 +603,7 @@ def main():
         ccn = extract_ccn(file_path)
         logger.info(f"[{index}/{total}] Processing CCN: {ccn}")
 
+        hospital_start_time = time.time()
         try:
             if file_path.endswith(".json"):
                 mrf_raw_prices = read_json(spark, file_path, ccn)
@@ -650,7 +655,8 @@ def main():
             )
             is_first_write = False
             processed.append(ccn)
-            logger.info(f"CCN {ccn} — successfully written to Silver")
+            elapsed = time.time() - hospital_start_time
+            logger.info(f"CCN {ccn} — successfully written to Silver in {elapsed:.1f}s")
 
         except Exception as e:
             logger.error(f"CCN {ccn} — failed with error: {str(e)}")
