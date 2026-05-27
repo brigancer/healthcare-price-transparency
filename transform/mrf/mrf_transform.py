@@ -1,4 +1,3 @@
-import gzip
 import io
 import json as json_lib
 import os
@@ -6,7 +5,6 @@ import re
 import time
 import zipfile
 
-import polars as pl
 import pyspark.sql.functions as F
 from databricks.connect import DatabricksSession
 from dotenv import load_dotenv
@@ -213,14 +211,56 @@ def decompress_zip(file_bytes: bytes) -> str:
         return zf.read(csv_files[0]).decode("utf-8")
 
 
-def read_csv_from_string(spark, content: str, ccn: str) -> DataFrame:
+def ensure_staging_volume(spark) -> None:
+    """Create mrf_staging volume if it does not exist."""
+    spark.sql("CREATE VOLUME IF NOT EXISTS workspace.hpt_dev.mrf_staging")
+
+
+def delete_staging_csv(ccn: str, staging_csv_path: str) -> None:
     """
-    Parse a CSV string into a Spark DataFrame using Polars.
-    Uses StringIO to avoid writing temp files.
-    Skips 2 metadata rows, keeps only ASCII columns.
+    Delete CCN-specific staging CSV file after successful Silver write.
     """
-    mrf_raw_prices = spark.createDataFrame(
-        pl.read_csv(io.StringIO(content), skip_rows=2, infer_schema=False).to_pandas()
+    from databricks.sdk import WorkspaceClient
+
+    client = WorkspaceClient(
+        host=os.getenv("DATABRICKS_HOST"),
+        token=os.getenv("DATABRICKS_CONNECT_TOKEN"),
+    )
+    client.files.delete(staging_csv_path)
+    logger.info(f"CCN {ccn} — staging CSV deleted: {staging_csv_path}")
+
+
+def write_csv_string_to_staging(raw_content: str, ccn: str) -> str:
+    """
+    Write decompressed ZIP CSV content to mrf_staging volume via Databricks SDK.
+    Returns staging path for Spark read-back and cleanup.
+    Avoids local Polars/pandas processing — content written directly to cloud storage.
+    """
+    from databricks.sdk import WorkspaceClient
+
+    client = WorkspaceClient(
+        host=os.getenv("DATABRICKS_HOST"),
+        token=os.getenv("DATABRICKS_CONNECT_TOKEN"),
+    )
+    staging_csv_path = f"/Volumes/workspace/hpt_dev/mrf_staging/{ccn}.csv"
+    client.files.upload(
+        staging_csv_path, io.BytesIO(raw_content.encode("utf-8")), overwrite=True
+    )
+    logger.info(f"CCN {ccn} — ZIP CSV uploaded to staging: {staging_csv_path}")
+    return staging_csv_path
+
+
+def read_staging_csv(spark, staging_csv_path: str, ccn: str) -> DataFrame:
+    """
+    Read staging CSV from Volume into Spark DataFrame.
+    Skips 2 metadata rows, infers no schema — all strings.
+    """
+    mrf_raw_prices = (
+        spark.read.format("csv")
+        .option("header", "true")
+        .option("skipRows", 2)
+        .option("inferSchema", "false")
+        .load(staging_csv_path)
     )
     clean_col_names = [
         col_name
@@ -252,14 +292,6 @@ def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
 def read_json(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a JSON MRF file using multiLine mode."""
     mrf_raw_prices = spark.read.json(file_path, multiLine=True)
-    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
-
-
-def read_gzip_json(spark, file_path: str, ccn: str) -> DataFrame:
-    """Read a gzip-compressed JSON MRF file using Spark native decompression."""
-    mrf_raw_prices = spark.read.option("compression", "gzip").json(
-        file_path, multiLine=True
-    )
     return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
@@ -333,7 +365,7 @@ def transform_wide_csv(spark, wide_mrf_prices: DataFrame, ccn: str) -> DataFrame
             col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
         )
 
-    return spark.createDataFrame(mrf_payer_charges.rdd, SILVER_SCHEMA)
+    return mrf_payer_charges
 
 
 def transform_long_csv(long_mrf_prices: DataFrame) -> DataFrame:
@@ -612,6 +644,8 @@ def main():
 
         hospital_start_time = time.time()
         try:
+            csv_shape = None
+            compression = None
             if file_path.endswith(".json"):
                 mrf_raw_prices = read_json(spark, file_path, ccn)
                 file_format = "json"
@@ -621,13 +655,13 @@ def main():
                 logger.info(f"CCN {ccn} — compression detected: {compression}")
 
                 if compression == "gzip":
-                    file_bytes = read_file_bytes(spark, file_path)
-                    raw_content = gzip.decompress(file_bytes).decode("utf-8")
-                    mrf_raw_prices = read_csv_from_string(spark, raw_content, ccn)
+                    mrf_raw_prices = read_plain_csv(spark, file_path, ccn)
                 elif compression == "zip":
                     file_bytes = read_file_bytes(spark, file_path)
                     raw_content = decompress_zip(file_bytes)
-                    mrf_raw_prices = read_csv_from_string(spark, raw_content, ccn)
+                    ensure_staging_volume(spark)
+                    staging_csv_path = write_csv_string_to_staging(raw_content, ccn)
+                    mrf_raw_prices = read_staging_csv(spark, staging_csv_path, ccn)
                 else:
                     mrf_raw_prices = read_plain_csv(spark, file_path, ccn)
                 file_format = "csv"
@@ -662,6 +696,8 @@ def main():
                 silver_mrf_prices_table,
                 is_first_write,
             )
+            if compression == "zip":
+                delete_staging_csv(ccn, staging_csv_path)
             is_first_write = False
             processed.append(ccn)
             elapsed = time.time() - hospital_start_time
