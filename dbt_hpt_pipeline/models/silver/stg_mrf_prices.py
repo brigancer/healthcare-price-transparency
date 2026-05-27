@@ -525,7 +525,8 @@ def transform_json(mrf_json_prices: DataFrame) -> DataFrame:
 def model(dbt, spark):
     dbt.config(
         materialized="incremental",
-        unique_key="ccn",
+        unique_key=["ccn", "code_1", "payer_name", "plan_name", "setting"],
+        on_schema_change="sync_all_columns",
         submission_method="serverless_cluster",
     )
 
