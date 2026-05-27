@@ -96,10 +96,12 @@ def list_volume_files(spark, path: str) -> list[str]:
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    return [row.path for row in files_df.select("path").collect()] #full list for production
-    #return [
+    return [
+        row.path for row in files_df.select("path").collect()
+    ]  # full list for production
+    # return [
     #    row.path for row in files_df.select("path").collect() if "440111" in row.path
-    #]  # temporary filter for testing with single hospital CCN
+    # ]  # temporary filter for testing with single hospital CCN
 
 
 def read_magic_bytes(spark, file_path: str) -> bytes:
@@ -664,6 +666,7 @@ def model(dbt, spark):
         )
 
     logger.info("Silver schema enforcement complete")
-    
+
     spark.conf.set("spark.sql.ansi.enabled", "false")
+    spark.conf.set("spark.databricks.photon.enabled", "false")
     return silver_mrf_prices
