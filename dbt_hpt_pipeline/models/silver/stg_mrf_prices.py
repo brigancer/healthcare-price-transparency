@@ -1,4 +1,5 @@
 import io
+import gzip
 import json as json_lib
 import logging
 import re
@@ -163,6 +164,7 @@ def read_csv_from_string(spark, content: str, ccn: str) -> DataFrame:
     Skips 2 metadata rows, keeps only ASCII columns.
     """
     import polars as pl
+
     mrf_raw_prices = spark.createDataFrame(
         pl.read_csv(io.StringIO(content), skip_rows=2, infer_schema=False).to_pandas()
     )
@@ -193,26 +195,6 @@ def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
     return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
-def read_gzip_csv(spark, file_path: str, ccn: str) -> DataFrame:
-    """
-    Read a gzip-compressed CSV MRF file using Polars.
-    Polars handles gzip decompression and metadata row skipping natively.
-    Converts to Spark DataFrame via pandas for serverless compatibility.
-    """
-    import polars as pl
-    local_path = file_path.replace("dbfs:/", "/dbfs/", 1)
-    mrf_raw_prices = spark.createDataFrame(
-        pl.read_csv(local_path, skip_rows=2, infer_schema=False).to_pandas()
-    )
-    clean_col_names = [
-        col_name
-        for col_name in mrf_raw_prices.columns
-        if col_name.isascii() and not col_name.startswith("_")
-    ]
-    mrf_raw_prices = mrf_raw_prices.select(clean_col_names)
-    return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
-
-
 def read_json(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a JSON MRF file using multiLine mode."""
     mrf_raw_prices = spark.read.json(file_path, multiLine=True)
@@ -221,7 +203,9 @@ def read_json(spark, file_path: str, ccn: str) -> DataFrame:
 
 def read_gzip_json(spark, file_path: str, ccn: str) -> DataFrame:
     """Read a gzip-compressed JSON MRF file using Spark native decompression."""
-    mrf_raw_prices = spark.read.option("compression", "gzip").json(file_path, multiLine=True)
+    mrf_raw_prices = spark.read.option("compression", "gzip").json(
+        file_path, multiLine=True
+    )
     return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
@@ -286,7 +270,7 @@ def transform_wide_csv(wide_mrf_prices: DataFrame) -> DataFrame:
 
     mrf_payer_charges = payer_slices[0]
     for payer_slice in payer_slices[1:]:
-        mrf_payer_charges = mrf_payer_charges.unionByName(payer_slice)
+        mrf_payer_charges = mrf_payer_charges.unionByName(payer_slice, allowMissingColumns=True)
 
     return mrf_payer_charges
 
@@ -538,7 +522,9 @@ def model(dbt, spark):
                 logger.info(f"CCN {ccn} — compression detected: {compression}")
 
                 if compression == "gzip":
-                    mrf_raw_prices = read_gzip_csv(spark, file_path, ccn)
+                    file_bytes = read_file_bytes(spark, file_path)
+                    raw_content = gzip.decompress(file_bytes).decode("utf-8")
+                    mrf_raw_prices = read_csv_from_string(spark, raw_content, ccn)
                 elif compression == "zip":
                     file_bytes = read_file_bytes(spark, file_path)
                     raw_content = decompress_zip(file_bytes)
@@ -593,7 +579,9 @@ def model(dbt, spark):
     # Union all hospital DataFrames
     unioned_hospital_payer_prices = hospital_payer_prices_list[0]
     for hospital_payer_prices in hospital_payer_prices_list[1:]:
-        unioned_hospital_payer_prices = unioned_hospital_payer_prices.unionByName(hospital_payer_prices)
+        unioned_hospital_payer_prices = unioned_hospital_payer_prices.unionByName(
+            hospital_payer_prices, allowMissingColumns=True
+        )
 
     # Filter to shoppable services
     shoppable_df = dbt.ref("shoppable_services")
