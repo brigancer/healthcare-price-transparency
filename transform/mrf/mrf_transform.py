@@ -1,9 +1,11 @@
+import gzip
 import io
 import json as json_lib
 import os
 import re
 import time
 import zipfile
+from functools import reduce
 
 import pyspark.sql.functions as F
 from databricks.connect import DatabricksSession
@@ -107,13 +109,13 @@ def list_volume_files(spark, path: str) -> list[str]:
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    # return [
-    #    row.path for row in files_df.select("path").collect()
-    # ]  # full list for production
-
     return [
-        row.path for row in files_df.select("path").collect() if "440003" in row.path
-    ]  # temporary filter for testing with single hospital CCN
+        row.path for row in files_df.select("path").collect()
+    ]  # full list for production
+
+    # return [
+    #     row.path for row in files_df.select("path").collect() if "440003" in row.path
+    # ]  # temporary filter for testing with single hospital CCN
 
 
 def read_magic_bytes(spark, file_path: str) -> bytes:
@@ -583,24 +585,40 @@ def write_hospital_to_silver(
     and write a single hospital's data to the Silver table.
     First hospital uses overwrite; all subsequent use append.
     """
+    available_code_cols = [
+        col_name
+        for col_name in ["code_1", "code_2", "code_3", "code_4"]
+        if col_name in hospital_payer_prices.columns
+    ]
+    join_condition = reduce(
+        lambda a, b: a | b,
+        [F.col(col_name) == shoppable_codes.code for col_name in available_code_cols],
+    )
     silver_hospital_prices = hospital_payer_prices.join(
         shoppable_codes,
-        (F.col("code_1") == shoppable_codes.code)
-        | (F.col("code_2") == shoppable_codes.code)
-        | (F.col("code_3") == shoppable_codes.code)
-        | (F.col("code_4") == shoppable_codes.code),
+        join_condition,
         how="left_semi",
     )
 
     for col_name in STRING_COLS:
-        silver_hospital_prices = silver_hospital_prices.withColumn(
-            col_name, F.expr(f"CAST(`{col_name}` AS STRING)")
-        )
+        if col_name in silver_hospital_prices.columns:
+            silver_hospital_prices = silver_hospital_prices.withColumn(
+                col_name, F.expr(f"CAST(`{col_name}` AS STRING)")
+            )
+        else:
+            silver_hospital_prices = silver_hospital_prices.withColumn(
+                col_name, F.lit(None).cast("string")
+            )
 
     for col_name in NUMERIC_COLS:
-        silver_hospital_prices = silver_hospital_prices.withColumn(
-            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
-        )
+        if col_name in silver_hospital_prices.columns:
+            silver_hospital_prices = silver_hospital_prices.withColumn(
+                col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
+            )
+        else:
+            silver_hospital_prices = silver_hospital_prices.withColumn(
+                col_name, F.lit(None).cast("double")
+            )
 
     write_mode = "overwrite" if is_first_write else "append"
     (
@@ -655,7 +673,11 @@ def main():
                 logger.info(f"CCN {ccn} — compression detected: {compression}")
 
                 if compression == "gzip":
-                    mrf_raw_prices = read_plain_csv(spark, file_path, ccn)
+                    file_bytes = read_file_bytes(spark, file_path)
+                    raw_content = gzip.decompress(file_bytes).decode("utf-8")
+                    ensure_staging_volume(spark)
+                    staging_csv_path = write_csv_string_to_staging(raw_content, ccn)
+                    mrf_raw_prices = read_staging_csv(spark, staging_csv_path, ccn)
                 elif compression == "zip":
                     file_bytes = read_file_bytes(spark, file_path)
                     raw_content = decompress_zip(file_bytes)
@@ -696,7 +718,7 @@ def main():
                 silver_mrf_prices_table,
                 is_first_write,
             )
-            if compression == "zip":
+            if compression in ("zip", "gzip"):
                 delete_staging_csv(ccn, staging_csv_path)
             is_first_write = False
             processed.append(ccn)
