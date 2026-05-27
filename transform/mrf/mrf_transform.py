@@ -10,6 +10,7 @@ from databricks.connect import DatabricksSession
 from dotenv import load_dotenv
 from loguru import logger
 from pyspark.sql import DataFrame
+from tqdm import tqdm
 
 load_dotenv()
 
@@ -568,7 +569,11 @@ def write_hospital_to_silver(
 
 
 def main():
-    spark = DatabricksSession.builder.getOrCreate()
+    spark = (
+        DatabricksSession.builder.serverless()
+        .token(os.getenv("DATABRICKS_CONNECT_TOKEN"))
+        .getOrCreate()
+    )
 
     volume_path = os.getenv("BRONZE_MRF_VOLUME")
     silver_mrf_prices_table = os.getenv("SILVER_MRF_TABLE")
@@ -587,12 +592,14 @@ def main():
     all_file_paths = list_volume_files(spark, volume_path)
     logger.info(f"Found {len(all_file_paths)} files in volume")
 
-    for file_path in all_file_paths:
+    total = len(all_file_paths)
+    for index, file_path in tqdm(
+        enumerate(all_file_paths, start=1), total=total, desc="Processing hospitals"
+    ):
         ccn = extract_ccn(file_path)
+        logger.info(f"[{index}/{total}] Processing CCN: {ccn}")
 
         try:
-            logger.info(f"Processing CCN: {ccn}, file: {file_path}")
-
             if file_path.endswith(".json"):
                 mrf_raw_prices = read_json(spark, file_path, ccn)
                 file_format = "json"
