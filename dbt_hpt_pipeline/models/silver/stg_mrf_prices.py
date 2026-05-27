@@ -289,7 +289,7 @@ def transform_wide_csv(wide_mrf_prices: DataFrame) -> DataFrame:
 
     for col_name in NUMERIC_COLS:
         mrf_payer_charges = mrf_payer_charges.withColumn(
-            col_name, F.col(col_name).cast("double")
+            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
         )
 
     return mrf_payer_charges
@@ -352,7 +352,7 @@ def transform_long_csv(long_mrf_prices: DataFrame) -> DataFrame:
 
     for col_name in NUMERIC_COLS:
         mrf_payer_charges = mrf_payer_charges.withColumn(
-            col_name, F.col(col_name).cast("double")
+            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
         )
 
     return mrf_payer_charges
@@ -492,7 +492,7 @@ def transform_json(mrf_json_prices: DataFrame) -> DataFrame:
 
     for col_name in NUMERIC_COLS:
         mrf_payer_charges = mrf_payer_charges.withColumn(
-            col_name, F.col(col_name).cast("double")
+            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
         )
 
     return mrf_payer_charges
