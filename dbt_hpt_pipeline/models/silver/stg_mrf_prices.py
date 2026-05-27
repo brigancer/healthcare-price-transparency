@@ -96,10 +96,10 @@ def list_volume_files(spark, path: str) -> list[str]:
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    # return [row.path for row in files_df.select("path").collect()] #full list for production
-    return [
-        row.path for row in files_df.select("path").collect() if "440111" in row.path
-    ]  # temporary filter for testing with single hospital CCN
+    return [row.path for row in files_df.select("path").collect()] #full list for production
+    #return [
+    #    row.path for row in files_df.select("path").collect() if "440111" in row.path
+    #]  # temporary filter for testing with single hospital CCN
 
 
 def read_magic_bytes(spark, file_path: str) -> bytes:
