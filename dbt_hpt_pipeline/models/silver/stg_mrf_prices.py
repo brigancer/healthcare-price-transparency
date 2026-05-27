@@ -96,8 +96,9 @@ def list_volume_files(spark, path: str) -> list[str]:
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    return [row.path for row in files_df.select("path").collect()]
-
+    #return [row.path for row in files_df.select("path").collect()] #full list for production
+    return [row.path for row in files_df.select("path").collect()
+        if "440111" in row.path] #temporary filter for testing with single hospital CCN
 
 def read_magic_bytes(spark, file_path: str) -> bytes:
     """Read first 4 bytes of a file for compression detection."""
@@ -639,16 +640,16 @@ def model(dbt, spark):
         )
 
     # Filter to shoppable services
-    shoppable_df = dbt.ref("shoppable_services")
+    shoppable_codes = dbt.ref("shoppable_services").select("code").distinct()
 
     silver_mrf_prices = unioned_hospital_payer_prices.join(
-        shoppable_df,
-        (unioned_hospital_payer_prices.code_1 == shoppable_df.code)
-        | (unioned_hospital_payer_prices.code_2 == shoppable_df.code)
-        | (unioned_hospital_payer_prices.code_3 == shoppable_df.code)
-        | (unioned_hospital_payer_prices.code_4 == shoppable_df.code),
-        how="inner",
-    ).drop(shoppable_df.code)
+        shoppable_codes,
+        (unioned_hospital_payer_prices.code_1 == shoppable_codes.code)
+        | (unioned_hospital_payer_prices.code_2 == shoppable_codes.code)
+        | (unioned_hospital_payer_prices.code_3 == shoppable_codes.code)
+        | (unioned_hospital_payer_prices.code_4 == shoppable_codes.code),
+        how="left_semi",
+    )
 
     # Enforce final Silver schema types
     for col_name in STRING_COLS:
