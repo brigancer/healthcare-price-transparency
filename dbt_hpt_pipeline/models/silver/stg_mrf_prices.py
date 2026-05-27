@@ -527,6 +527,46 @@ def transform_json(mrf_json_prices: DataFrame) -> DataFrame:
     return mrf_payer_charges
 
 
+def write_hospital_to_silver(
+    spark,
+    hospital_payer_prices: DataFrame,
+    shoppable_codes: DataFrame,
+    table_name: str,
+    is_first_write: bool,
+) -> None:
+    """
+    Filter to shoppable services, enforce Silver schema types,
+    and write a single hospital's data to the Silver table.
+    First hospital uses overwrite; all subsequent use append.
+    """
+    silver_hospital_prices = hospital_payer_prices.join(
+        shoppable_codes,
+        (hospital_payer_prices.code_1 == shoppable_codes.code)
+        | (hospital_payer_prices.code_2 == shoppable_codes.code)
+        | (hospital_payer_prices.code_3 == shoppable_codes.code)
+        | (hospital_payer_prices.code_4 == shoppable_codes.code),
+        how="left_semi",
+    )
+
+    for col_name in STRING_COLS:
+        silver_hospital_prices = silver_hospital_prices.withColumn(
+            col_name, F.expr(f"CAST(`{col_name}` AS STRING)")
+        )
+    for col_name in NUMERIC_COLS:
+        silver_hospital_prices = silver_hospital_prices.withColumn(
+            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
+        )
+
+    write_mode = "overwrite" if is_first_write else "append"
+    (
+        silver_hospital_prices.write
+        .mode(write_mode)
+        .option("overwriteSchema", "true")
+        .format("delta")
+        .saveAsTable(table_name)
+    )
+
+
 def model(dbt, spark):
     dbt.config(
         materialized="incremental",
@@ -559,7 +599,9 @@ def model(dbt, spark):
     all_file_paths = list_volume_files(spark, volume_path)
     logger.info(f"Found {len(all_file_paths)} files in volume")
 
-    hospital_payer_prices_list = []
+    is_first_write = not dbt.is_incremental
+    table_name = "`workspace`.`hpt_dev`.`stg_mrf_prices`"
+    shoppable_codes = dbt.ref("shoppable_services").select("code").distinct()
 
     for file_path in all_file_paths:
         ccn = extract_ccn(file_path)
@@ -572,7 +614,6 @@ def model(dbt, spark):
         try:
             logger.info(f"Processing CCN: {ccn}, file: {file_path}")
 
-            # Step 1 — route by file type
             if file_path.endswith(".json"):
                 mrf_raw_prices = read_json(spark, file_path, ccn)
                 file_format = "json"
@@ -595,7 +636,6 @@ def model(dbt, spark):
 
             logger.info(f"CCN {ccn} — file format: {file_format}")
 
-            # Step 2 — detect shape and transform
             if file_format == "json":
                 hospital_payer_prices = transform_json(mrf_raw_prices)
             else:
@@ -614,16 +654,19 @@ def model(dbt, spark):
                     skipped.append(ccn)
                     continue
 
-            hospital_payer_prices_list.append(hospital_payer_prices)
+            spark.conf.set("spark.sql.ansi.enabled", "false")
+            write_hospital_to_silver(
+                spark, hospital_payer_prices, shoppable_codes, table_name, is_first_write
+            )
+            is_first_write = False
             processed.append(ccn)
-            logger.info(f"CCN {ccn} — successfully transformed")
+            logger.info(f"CCN {ccn} — successfully written to Silver")
 
         except Exception as e:
             logger.error(f"CCN {ccn} — failed with error: {str(e)}")
             failed.append(ccn)
             continue
 
-    # Log summary
     logger.info(
         f"Processing complete — "
         f"processed: {processed}, "
@@ -631,41 +674,9 @@ def model(dbt, spark):
         f"failed: {failed}"
     )
 
-    if not hospital_payer_prices_list:
+    if not processed and not skipped:
         raise ValueError(
-            f"No hospitals successfully processed. Failed: {failed}, Skipped: {skipped}"
+            f"No hospitals successfully processed. Failed: {failed}"
         )
 
-    # Union all hospital DataFrames
-    unioned_hospital_payer_prices = hospital_payer_prices_list[0]
-    for hospital_payer_prices in hospital_payer_prices_list[1:]:
-        unioned_hospital_payer_prices = unioned_hospital_payer_prices.unionByName(
-            hospital_payer_prices, allowMissingColumns=True
-        )
-
-    # Filter to shoppable services
-    shoppable_codes = dbt.ref("shoppable_services").select("code").distinct()
-
-    silver_mrf_prices = unioned_hospital_payer_prices.join(
-        shoppable_codes,
-        (unioned_hospital_payer_prices.code_1 == shoppable_codes.code)
-        | (unioned_hospital_payer_prices.code_2 == shoppable_codes.code)
-        | (unioned_hospital_payer_prices.code_3 == shoppable_codes.code)
-        | (unioned_hospital_payer_prices.code_4 == shoppable_codes.code),
-        how="left_semi",
-    )
-
-    # Enforce final Silver schema types
-    for col_name in STRING_COLS:
-        silver_mrf_prices = silver_mrf_prices.withColumn(
-            col_name, F.expr(f"CAST(`{col_name}` AS STRING)")
-        )
-    for col_name in NUMERIC_COLS:
-        silver_mrf_prices = silver_mrf_prices.withColumn(
-            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
-        )
-
-    logger.info("Silver schema enforcement complete")
-
-    spark.conf.set("spark.sql.ansi.enabled", "false")
-    return silver_mrf_prices.repartition(20)
+    return spark.sql(f"SELECT * FROM {table_name} LIMIT 1")
