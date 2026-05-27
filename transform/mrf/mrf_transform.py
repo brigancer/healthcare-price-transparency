@@ -1,16 +1,17 @@
-import io
 import gzip
+import io
 import json as json_lib
-import logging
+import os
 import re
-import subprocess
 import zipfile
 
 import pyspark.sql.functions as F
+from databricks.connect import DatabricksSession
+from dotenv import load_dotenv
+from loguru import logger
 from pyspark.sql import DataFrame
 
-logger = logging.getLogger(__name__)
-
+load_dotenv()
 
 FIXED_COLS = {
     "description",
@@ -531,7 +532,7 @@ def write_hospital_to_silver(
     spark,
     hospital_payer_prices: DataFrame,
     shoppable_codes: DataFrame,
-    table_name: str,
+    silver_mrf_prices_table: str,
     is_first_write: bool,
 ) -> None:
     """
@@ -559,57 +560,35 @@ def write_hospital_to_silver(
 
     write_mode = "overwrite" if is_first_write else "append"
     (
-        silver_hospital_prices.write
-        .mode(write_mode)
+        silver_hospital_prices.write.mode(write_mode)
         .option("overwriteSchema", "true")
         .format("delta")
-        .saveAsTable(table_name)
+        .saveAsTable(silver_mrf_prices_table)
     )
 
 
-def model(dbt, spark):
-    dbt.config(
-        materialized="incremental",
-        unique_key=["ccn"],
-        contract={"enforced": True},
-        submission_method="serverless_cluster",
-    )
+def main():
+    spark = DatabricksSession.builder.getOrCreate()
 
-    subprocess.run(["pip", "install", "polars>=1.40.1"], check=True)
-
-    logging.basicConfig(level=logging.INFO)
-    volume_path = "/Volumes/workspace/hpt_dev/bronze_mrf_raw"
+    volume_path = os.getenv("BRONZE_MRF_VOLUME")
+    silver_mrf_prices_table = os.getenv("SILVER_MRF_TABLE")
 
     processed = []
     skipped = []
     failed = []
+    is_first_write = True
 
-    # Determine which CCNs are already in the Silver table
-    already_processed_ccns = set()
-    if dbt.is_incremental:
-        already_processed_ccns = {
-            row.ccn
-            for row in spark.sql(f"select distinct ccn from {dbt.this}").collect()
-        }
-        logger.info(
-            f"Incremental run — skipping already processed CCNs: {already_processed_ccns}"
-        )
+    shoppable_codes = (
+        spark.read.table("workspace.hpt_dev_seeds.shoppable_services")
+        .select("code")
+        .distinct()
+    )
 
-    # List all files in bronze volume
     all_file_paths = list_volume_files(spark, volume_path)
     logger.info(f"Found {len(all_file_paths)} files in volume")
 
-    is_first_write = not dbt.is_incremental
-    table_name = "`workspace`.`hpt_dev`.`stg_mrf_prices`"
-    shoppable_codes = dbt.ref("shoppable_services").select("code").distinct()
-
     for file_path in all_file_paths:
         ccn = extract_ccn(file_path)
-
-        if ccn in already_processed_ccns:
-            logger.info(f"Skipping already processed CCN: {ccn}")
-            skipped.append(ccn)
-            continue
 
         try:
             logger.info(f"Processing CCN: {ccn}, file: {file_path}")
@@ -656,7 +635,11 @@ def model(dbt, spark):
 
             spark.conf.set("spark.sql.ansi.enabled", "false")
             write_hospital_to_silver(
-                spark, hospital_payer_prices, shoppable_codes, table_name, is_first_write
+                spark,
+                hospital_payer_prices,
+                shoppable_codes,
+                silver_mrf_prices_table,
+                is_first_write,
             )
             is_first_write = False
             processed.append(ccn)
@@ -674,9 +657,11 @@ def model(dbt, spark):
         f"failed: {failed}"
     )
 
-    if not processed and not skipped:
+    if not processed:
         raise ValueError(
-            f"No hospitals successfully processed. Failed: {failed}"
+            f"No hospitals successfully processed. Failed: {failed}, Skipped: {skipped}"
         )
 
-    return spark.sql(f"SELECT * FROM {table_name} LIMIT 1")
+
+if __name__ == "__main__":
+    main()

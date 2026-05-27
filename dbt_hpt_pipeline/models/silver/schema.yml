@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: stg_mrf_prices
+    description: "Silver layer MRF prices — canonical schema across all 17 Nashville MSA hospitals, filtered to CMS shoppable services"
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: ccn
+        data_type: varchar
+      - name: description
+        data_type: varchar
+      - name: code_1
+        data_type: varchar
+      - name: code_1_type
+        data_type: varchar
+      - name: code_2
+        data_type: varchar
+      - name: code_2_type
+        data_type: varchar
+      - name: code_3
+        data_type: varchar
+      - name: code_3_type
+        data_type: varchar
+      - name: code_4
+        data_type: varchar
+      - name: code_4_type
+        data_type: varchar
+      - name: billing_class
+        data_type: varchar
+      - name: setting
+        data_type: varchar
+      - name: modifiers
+        data_type: varchar
+      - name: drug_unit_of_measurement
+        data_type: varchar
+      - name: drug_type_of_measurement
+        data_type: varchar
+      - name: additional_generic_notes
+        data_type: varchar
+      - name: payer_name
+        data_type: varchar
+      - name: plan_name
+        data_type: varchar
+      - name: negotiated_algorithm
+        data_type: varchar
+      - name: methodology
+        data_type: varchar
+      - name: additional_payer_notes
+        data_type: varchar
+      - name: negotiated_dollar
+        data_type: double
+      - name: negotiated_percentage
+        data_type: double
+      - name: standard_charge_gross
+        data_type: double
+      - name: standard_charge_discounted_cash
+        data_type: double
+      - name: standard_charge_min
+        data_type: double
+      - name: standard_charge_max
+        data_type: double
+      - name: median_amount
+        data_type: double
+      - name: 10th_percentile
+        data_type: double
+      - name: 90th_percentile
+        data_type: double
+      - name: count
+        data_type: double

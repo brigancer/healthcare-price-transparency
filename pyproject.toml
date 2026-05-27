@@ -8,6 +8,7 @@ dependencies = [
     "boto3>=1.43.0",
     "dagster>=1.13.3",
     "dagster-webserver>=1.13.3",
+    "databricks-connect>=18.2.0",
     "ijson>=3.5.0",
     "loguru>=0.7.3",
     "polars>=1.40.1",
