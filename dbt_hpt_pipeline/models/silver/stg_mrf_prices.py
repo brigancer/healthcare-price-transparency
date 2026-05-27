@@ -50,6 +50,30 @@ FIXED_COLS_RENAME = {
     "standard_charge|max": "standard_charge_max",
 }
 
+STRING_COLS = [
+    "ccn",
+    "description",
+    "code_1",
+    "code_1_type",
+    "code_2",
+    "code_2_type",
+    "code_3",
+    "code_3_type",
+    "code_4",
+    "code_4_type",
+    "billing_class",
+    "setting",
+    "modifiers",
+    "drug_unit_of_measurement",
+    "drug_type_of_measurement",
+    "additional_generic_notes",
+    "payer_name",
+    "plan_name",
+    "negotiated_algorithm",
+    "methodology",
+    "additional_payer_notes",
+]
+
 NUMERIC_COLS = [
     "negotiated_dollar",
     "negotiated_percentage",
@@ -616,11 +640,6 @@ def model(dbt, spark):
     # Filter to shoppable services
     shoppable_df = dbt.ref("shoppable_services")
 
-    # Cast ccn to string before join to prevent BIGINT inference
-    unioned_hospital_payer_prices = unioned_hospital_payer_prices.withColumn(
-        "ccn", F.col("ccn").cast("string")
-    )
-
     silver_mrf_prices = unioned_hospital_payer_prices.join(
         shoppable_df,
         (unioned_hospital_payer_prices.code_1 == shoppable_df.code)
@@ -629,6 +648,16 @@ def model(dbt, spark):
         | (unioned_hospital_payer_prices.code_4 == shoppable_df.code),
         how="inner",
     ).drop(shoppable_df.code)
+
+    # Enforce final Silver schema types
+    for col_name in STRING_COLS:
+        silver_mrf_prices = silver_mrf_prices.withColumn(
+            col_name, F.col(col_name).cast("string")
+        )
+    for col_name in NUMERIC_COLS:
+        silver_mrf_prices = silver_mrf_prices.withColumn(
+            col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
+        )
 
     logger.info(f"Final Silver table row count: {silver_mrf_prices.count()}")
 
