@@ -10,14 +10,12 @@ clean-targets:
   - "dbt_packages"
 
 seeds:
-  # Builds seeds into '<your_schema_name>_raw'
   dbt_hpt_pipeline:
-    +schema: seeds
+    +schema: seeds  # Builds seeds into hpt_dev_seeds schema
 
 models:
   dbt_hpt_pipeline:
-    # Materialize staging models as views, and marts as tables
-    silver:
-      +materialized: view
+    # Silver models declare their own materialization in dbt.config()
+    # Gold models are materialized as tables
     gold:
       +materialized: table

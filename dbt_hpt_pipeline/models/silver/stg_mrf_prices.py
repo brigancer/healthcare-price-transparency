@@ -96,9 +96,11 @@ def list_volume_files(spark, path: str) -> list[str]:
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    #return [row.path for row in files_df.select("path").collect()] #full list for production
-    return [row.path for row in files_df.select("path").collect()
-        if "440111" in row.path] #temporary filter for testing with single hospital CCN
+    # return [row.path for row in files_df.select("path").collect()] #full list for production
+    return [
+        row.path for row in files_df.select("path").collect() if "440111" in row.path
+    ]  # temporary filter for testing with single hospital CCN
+
 
 def read_magic_bytes(spark, file_path: str) -> bytes:
     """Read first 4 bytes of a file for compression detection."""
@@ -526,8 +528,8 @@ def transform_json(mrf_json_prices: DataFrame) -> DataFrame:
 def model(dbt, spark):
     dbt.config(
         materialized="incremental",
-        unique_key=["ccn", "code_1", "payer_name", "plan_name", "setting"],
-        on_schema_change="sync_all_columns",
+        unique_key=["ccn"],
+        contract={"enforced": True},
         submission_method="serverless_cluster",
     )
 
