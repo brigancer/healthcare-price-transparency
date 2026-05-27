@@ -50,6 +50,19 @@ FIXED_COLS_RENAME = {
     "standard_charge|max": "standard_charge_max",
 }
 
+NUMERIC_COLS = [
+    "negotiated_dollar",
+    "negotiated_percentage",
+    "standard_charge_gross",
+    "standard_charge_discounted_cash",
+    "standard_charge_min",
+    "standard_charge_max",
+    "median_amount",
+    "10th_percentile",
+    "90th_percentile",
+    "count",
+]
+
 
 def list_volume_files(spark, path: str) -> list[str]:
     """List all files in the bronze volume."""
@@ -173,7 +186,7 @@ def read_csv_from_string(spark, content: str, ccn: str) -> DataFrame:
         for col_name in mrf_raw_prices.columns
         if col_name.isascii() and not col_name.startswith("_")
     ]
-    mrf_raw_prices = mrf_raw_prices.select(clean_col_names)
+    mrf_raw_prices = mrf_raw_prices.select(clean_col_names).replace("", None)
     return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
@@ -191,7 +204,7 @@ def read_plain_csv(spark, file_path: str, ccn: str) -> DataFrame:
         for col_name in mrf_raw_prices.columns
         if col_name.isascii() and not col_name.startswith("_")
     ]
-    mrf_raw_prices = mrf_raw_prices.select(clean_col_names)
+    mrf_raw_prices = mrf_raw_prices.select(clean_col_names).replace("", None)
     return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
@@ -270,7 +283,14 @@ def transform_wide_csv(wide_mrf_prices: DataFrame) -> DataFrame:
 
     mrf_payer_charges = payer_slices[0]
     for payer_slice in payer_slices[1:]:
-        mrf_payer_charges = mrf_payer_charges.unionByName(payer_slice, allowMissingColumns=True)
+        mrf_payer_charges = mrf_payer_charges.unionByName(
+            payer_slice, allowMissingColumns=True
+        )
+
+    for col_name in NUMERIC_COLS:
+        mrf_payer_charges = mrf_payer_charges.withColumn(
+            col_name, F.col(col_name).cast("double")
+        )
 
     return mrf_payer_charges
 
@@ -329,6 +349,11 @@ def transform_long_csv(long_mrf_prices: DataFrame) -> DataFrame:
         get_col("90th_percentile", "90th_percentile"),
         get_col("count", "count"),
     )
+
+    for col_name in NUMERIC_COLS:
+        mrf_payer_charges = mrf_payer_charges.withColumn(
+            col_name, F.col(col_name).cast("double")
+        )
 
     return mrf_payer_charges
 
@@ -464,6 +489,11 @@ def transform_json(mrf_json_prices: DataFrame) -> DataFrame:
         get_payer_field("90th_percentile", "90th_percentile"),
         get_payer_field("count", "count"),
     )
+
+    for col_name in NUMERIC_COLS:
+        mrf_payer_charges = mrf_payer_charges.withColumn(
+            col_name, F.col(col_name).cast("double")
+        )
 
     return mrf_payer_charges
 
