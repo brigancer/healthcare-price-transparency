@@ -12,6 +12,7 @@ from databricks.connect import DatabricksSession
 from dotenv import load_dotenv
 from loguru import logger
 from pyspark.sql import DataFrame
+from pyspark.sql.types import DoubleType, StringType, StructField, StructType
 from tqdm import tqdm
 
 load_dotenv()
@@ -94,6 +95,11 @@ NUMERIC_COLS = [
     "count",
 ]
 
+SILVER_SCHEMA = StructType(
+    [StructField(col, StringType(), True) for col in STRING_COLS]
+    + [StructField(col, DoubleType(), True) for col in NUMERIC_COLS]
+)
+
 
 def list_volume_files(spark, path: str) -> list[str]:
     """List all files in the bronze volume."""
@@ -103,12 +109,13 @@ def list_volume_files(spark, path: str) -> list[str]:
         .option("recursiveFileLookup", "false")
         .load(path)
     )
-    return [
-        row.path for row in files_df.select("path").collect()
-    ]  # full list for production
     # return [
-    #    row.path for row in files_df.select("path").collect() if "440111" in row.path
-    # ]  # temporary filter for testing with single hospital CCN
+    #    row.path for row in files_df.select("path").collect()
+    # ]  # full list for production
+
+    return [
+        row.path for row in files_df.select("path").collect() if "440003" in row.path
+    ]  # temporary filter for testing with single hospital CCN
 
 
 def read_magic_bytes(spark, file_path: str) -> bytes:
@@ -256,7 +263,7 @@ def read_gzip_json(spark, file_path: str, ccn: str) -> DataFrame:
     return mrf_raw_prices.withColumn("ccn", F.lit(ccn))
 
 
-def transform_wide_csv(wide_mrf_prices: DataFrame) -> DataFrame:
+def transform_wide_csv(spark, wide_mrf_prices: DataFrame, ccn: str) -> DataFrame:
     """
     Unpivot a wide CSV DataFrame into canonical Silver schema.
     Each service row becomes one row per payer/plan combination.
@@ -326,7 +333,7 @@ def transform_wide_csv(wide_mrf_prices: DataFrame) -> DataFrame:
             col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
         )
 
-    return mrf_payer_charges
+    return spark.createDataFrame(mrf_payer_charges.rdd, SILVER_SCHEMA)
 
 
 def transform_long_csv(long_mrf_prices: DataFrame) -> DataFrame:
@@ -544,13 +551,12 @@ def write_hospital_to_silver(
     and write a single hospital's data to the Silver table.
     First hospital uses overwrite; all subsequent use append.
     """
-    hospital_prices_aliased = hospital_payer_prices.alias("hospital_prices")
-    silver_hospital_prices = hospital_prices_aliased.join(
+    silver_hospital_prices = hospital_payer_prices.join(
         shoppable_codes,
-        (F.col("hospital_prices.code_1") == shoppable_codes.code)
-        | (F.col("hospital_prices.code_2") == shoppable_codes.code)
-        | (F.col("hospital_prices.code_3") == shoppable_codes.code)
-        | (F.col("hospital_prices.code_4") == shoppable_codes.code),
+        (F.col("code_1") == shoppable_codes.code)
+        | (F.col("code_2") == shoppable_codes.code)
+        | (F.col("code_3") == shoppable_codes.code)
+        | (F.col("code_4") == shoppable_codes.code),
         how="left_semi",
     )
 
@@ -558,6 +564,7 @@ def write_hospital_to_silver(
         silver_hospital_prices = silver_hospital_prices.withColumn(
             col_name, F.expr(f"CAST(`{col_name}` AS STRING)")
         )
+
     for col_name in NUMERIC_COLS:
         silver_hospital_prices = silver_hospital_prices.withColumn(
             col_name, F.expr(f"TRY_CAST(`{col_name}` AS DOUBLE)")
@@ -634,7 +641,9 @@ def main():
                 logger.info(f"CCN {ccn} — CSV shape detected: {csv_shape}")
 
                 if csv_shape == "wide":
-                    hospital_payer_prices = transform_wide_csv(mrf_raw_prices)
+                    hospital_payer_prices = transform_wide_csv(
+                        spark, mrf_raw_prices, ccn
+                    )
                 elif csv_shape == "long":
                     hospital_payer_prices = transform_long_csv(mrf_raw_prices)
                 else:
