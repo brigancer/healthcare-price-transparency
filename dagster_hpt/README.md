@@ -1,47 +1,61 @@
 # dagster_hpt
 
-This is a [Dagster](https://dagster.io/) project scaffolded with [`dagster project scaffold`](https://docs.dagster.io/guides/build/projects/creating-a-new-project).
-
 ## Getting started
 
-First, install your Dagster code location as a Python package. By using the --editable flag, pip will install your Python package in ["editable mode"](https://pip.pypa.io/en/latest/topics/local-project-installs/#editable-installs) so that as you develop, local code changes will automatically apply.
+### Installing dependencies
+
+**Option 1: uv**
+
+Ensure [`uv`](https://docs.astral.sh/uv/) is installed following their [official documentation](https://docs.astral.sh/uv/getting-started/installation/).
+
+Create a virtual environment, and install the required dependencies using _sync_:
+
+```bash
+uv sync
+```
+
+Then, activate the virtual environment:
+
+| OS | Command |
+| --- | --- |
+| MacOS | ```source .venv/bin/activate``` |
+| Windows | ```.venv\Scripts\activate``` |
+
+**Option 2: pip**
+
+Install the python dependencies with [pip](https://pypi.org/project/pip/):
+
+```bash
+python3 -m venv .venv
+```
+
+Then activate the virtual environment:
+
+| OS | Command |
+| --- | --- |
+| MacOS | ```source .venv/bin/activate``` |
+| Windows | ```.venv\Scripts\activate``` |
+
+Install the required dependencies:
 
 ```bash
 pip install -e ".[dev]"
 ```
 
-Then, start the Dagster UI web server:
+### Running Dagster
+
+Start the Dagster UI web server:
 
 ```bash
-dagster dev
+dg dev
 ```
 
-Open http://localhost:3000 with your browser to see the project.
+Open http://localhost:3000 in your browser to see the project.
 
-You can start writing assets in `dagster_hpt/assets.py`. The assets are automatically loaded into the Dagster code location as you define them.
+## Learn more
 
-## Development
+To learn more about this template and Dagster in general:
 
-### Adding new Python dependencies
-
-You can specify new Python dependencies in `setup.py`.
-
-### Unit testing
-
-Tests are in the `dagster_hpt_tests` directory and you can run tests using `pytest`:
-
-```bash
-pytest dagster_hpt_tests
-```
-
-### Schedules and sensors
-
-If you want to enable Dagster [Schedules](https://docs.dagster.io/guides/automate/schedules/) or [Sensors](https://docs.dagster.io/guides/automate/sensors/) for your jobs, the [Dagster Daemon](https://docs.dagster.io/guides/deploy/execution/dagster-daemon) process must be running. This is done automatically when you run `dagster dev`.
-
-Once your Dagster Daemon is running, you can start turning on schedules and sensors for your jobs.
-
-## Deploy on Dagster+
-
-The easiest way to deploy your Dagster project is to use Dagster+.
-
-Check out the [Dagster+ documentation](https://docs.dagster.io/dagster-plus/) to learn more.
+- [Dagster Documentation](https://docs.dagster.io/)
+- [Dagster University](https://courses.dagster.io/)
+- [Dagster Slack Community](https://dagster.io/slack)

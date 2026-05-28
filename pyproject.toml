@@ -7,6 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "boto3>=1.43.0",
     "dagster>=1.13.3",
+    "dagster-dbt>=0.29.3",
     "dagster-webserver>=1.13.3",
     "databricks-connect==18.1.*",
     "ijson>=3.5.0",
@@ -25,4 +26,4 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["ingestion", "ingestion.cms", "ingestion.mrf"]
+packages = ["ingestion", "ingestion.cms", "ingestion.mrf", "transform", "transform.mrf"]

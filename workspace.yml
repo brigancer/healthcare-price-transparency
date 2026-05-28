@@ -1,0 +1,4 @@
+load_from:
+  - python_file:
+      relative_path: dagster_hpt/dagster_hpt/definitions.py
+      working_directory: .
