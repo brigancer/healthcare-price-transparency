@@ -1,0 +1,107 @@
+version: 2
+
+models:
+  - name: stg_mrf_prices
+    description: "Silver layer MRF prices — canonical schema across all 17 Nashville MSA hospitals, filtered to CMS shoppable services"
+    config:
+      contract:
+        enforced: true
+    tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "negotiated_dollar is not null or negotiated_percentage is not null or negotiated_algorithm is not null"
+          name: at_least_one_rate_field_not_null
+          config:
+            severity: warn
+    columns:
+      - name: ccn
+        data_type: string
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('nashville_msa_hospitals')
+                field: ccn
+      - name: description
+        data_type: string
+        tests:
+          - not_null
+      - name: code_1
+        data_type: string
+        tests:
+          - not_null
+      - name: code_1_type
+        data_type: string
+        tests:
+          - not_null
+      - name: code_2
+        data_type: string
+      - name: code_2_type
+        data_type: string
+      - name: code_3
+        data_type: string
+      - name: code_3_type
+        data_type: string
+      - name: code_4
+        data_type: string
+      - name: code_4_type
+        data_type: string
+      - name: billing_class
+        data_type: string
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Facility', 'facility', 'Professional', 'professional']
+              config:
+                severity: warn  
+      - name: setting
+        data_type: string
+      - name: modifiers
+        data_type: string
+      - name: drug_unit_of_measurement
+        data_type: string
+      - name: drug_type_of_measurement
+        data_type: string
+      - name: additional_generic_notes
+        data_type: string
+      - name: payer_name
+        data_type: string
+        tests:
+          - not_null
+      - name: plan_name
+        data_type: string
+        tests:
+          - not_null
+      - name: negotiated_algorithm
+        data_type: string
+      - name: methodology
+        data_type: string
+      - name: additional_payer_notes
+        data_type: string
+      - name: negotiated_dollar
+        data_type: double
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+              config:
+                where: "negotiated_dollar is not null"
+              name: negotiated_dollar_is_positive
+      - name: negotiated_percentage
+        data_type: double
+      - name: standard_charge_gross
+        data_type: double
+      - name: standard_charge_discounted_cash
+        data_type: double
+      - name: standard_charge_min
+        data_type: double
+      - name: standard_charge_max
+        data_type: double
+      - name: median_amount
+        data_type: double
+      - name: 10th_percentile
+        data_type: double
+      - name: 90th_percentile
+        data_type: double
+      - name: count
+        data_type: double

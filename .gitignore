@@ -220,3 +220,6 @@ __marimo__/
 # dbt logs
 logs/
 *.log
+
+# temporary files
+explore_json.py
