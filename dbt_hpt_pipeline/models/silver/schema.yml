@@ -15,6 +15,7 @@ models:
             severity: warn
     columns:
       - name: ccn
+        description: "CMS Certification Number. Primary identifier for the hospital."
         data_type: string
         tests:
           - not_null
@@ -23,62 +24,83 @@ models:
                 to: ref('nashville_msa_hospitals')
                 field: ccn
       - name: description
+        description: "Human-readable description of the item or service as published by the hospital."
         data_type: string
         tests:
           - not_null
       - name: code_1
+        description: "Primary billing code (e.g. CPT, HCPCS, DRG, NDC, RC) for the service."
         data_type: string
         tests:
           - not_null
       - name: code_1_type
+        description: "Coding system for code_1 (e.g. CPT, HCPCS, DRG, NDC, RC)."
         data_type: string
         tests:
           - not_null
       - name: code_2
+        description: "Secondary billing code for the service. Null when not published by the hospital."
         data_type: string
       - name: code_2_type
+        description: "Coding system for code_2. Null when not published by the hospital."
         data_type: string
       - name: code_3
+        description: "Tertiary billing code for the service. Null when not published by the hospital."
         data_type: string
       - name: code_3_type
+        description: "Coding system for code_3. Null when not published by the hospital."
         data_type: string
       - name: code_4
+        description: "Quaternary billing code for the service. Null when not published by the hospital."
         data_type: string
       - name: code_4_type
+        description: "Coding system for code_4. Null when not published by the hospital."
         data_type: string
       - name: billing_class
+        description: "Billing classification: Facility (hospital-based) or Professional (provider-based)."
         data_type: string
         tests:
           - accepted_values:
               arguments:
                 values: ['Facility', 'facility', 'Professional', 'professional']
               config:
-                severity: warn  
+                severity: warn
       - name: setting
+        description: "Care setting for the service (e.g. inpatient, outpatient). Null when not published."
         data_type: string
       - name: modifiers
+        description: "Billing modifiers applied to the service code. Null when not published."
         data_type: string
       - name: drug_unit_of_measurement
+        description: "Unit of measurement for drug items (e.g. ML, GM). Null for non-drug services."
         data_type: string
       - name: drug_type_of_measurement
+        description: "Type of measurement for drug items (e.g. each, per dose). Null for non-drug services."
         data_type: string
       - name: additional_generic_notes
+        description: "Free-text notes published by the hospital about the service. Null when not published."
         data_type: string
       - name: payer_name
+        description: "Name of the insurance payer associated with this negotiated rate."
         data_type: string
         tests:
           - not_null
       - name: plan_name
+        description: "Name of the specific insurance plan associated with this negotiated rate."
         data_type: string
         tests:
           - not_null
       - name: negotiated_algorithm
+        description: "Algorithm or formula used to calculate the negotiated rate. Null when a fixed dollar amount is published."
         data_type: string
       - name: methodology
+        description: "Methodology used to establish the negotiated rate (e.g. fee schedule, case rate). Null when not published."
         data_type: string
       - name: additional_payer_notes
+        description: "Free-text notes published by the hospital about the payer or plan. Null when not published."
         data_type: string
       - name: negotiated_dollar
+        description: "Negotiated rate as a fixed dollar amount. Null when rate is expressed as percentage or algorithm."
         data_type: double
         tests:
           - dbt_utils.expression_is_true:
@@ -88,20 +110,171 @@ models:
                 where: "negotiated_dollar is not null"
               name: negotiated_dollar_is_positive
       - name: negotiated_percentage
+        description: "Negotiated rate as a percentage of billed charges. Null when rate is expressed as dollar amount or algorithm."
         data_type: double
       - name: standard_charge_gross
+        description: "Gross charge (chargemaster rate) for the service before any discounts or negotiations."
         data_type: double
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+              config:
+                where: "standard_charge_gross is not null"
+              name: standard_charge_gross_is_positive
       - name: standard_charge_discounted_cash
+        description: "Discounted cash pay rate offered to self-pay patients."
         data_type: double
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+              config:
+                where: "standard_charge_discounted_cash is not null"
+              name: standard_charge_discounted_cash_is_positive
       - name: standard_charge_min
+        description: "Minimum negotiated rate across all payers for this service."
         data_type: double
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+              config:
+                where: "standard_charge_min is not null"
+              name: standard_charge_min_is_positive
       - name: standard_charge_max
+        description: "Maximum negotiated rate across all payers for this service."
         data_type: double
+        tests:
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
+              config:
+                where: "standard_charge_max is not null"
+              name: standard_charge_max_is_positive
       - name: median_amount
+        description: "Median negotiated rate across all payers for this service. Null when not published."
         data_type: double
       - name: 10th_percentile
+        description: "10th percentile negotiated rate across all payers for this service. Null when not published."
         data_type: double
       - name: 90th_percentile
+        description: "90th percentile negotiated rate across all payers for this service. Null when not published."
         data_type: double
       - name: count
+        description: "Number of claims used to calculate the negotiated rate. Null when not published."
         data_type: double
+  - name: stg_quality_scores
+    description: "CMS Care Compare quality scores for Nashville MSA hospitals. Cleaned and typed from bronze_cms_quality volume."
+    columns:
+      - name: ccn
+        description: "CMS Certification Number. Primary identifier for the hospital."
+        data_type: string
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              arguments:
+                to: ref('nashville_msa_hospitals')
+                field: ccn
+      - name: facility_name
+        description: "Hospital name as reported by CMS."
+        data_type: string
+        tests:
+          - not_null
+      - name: hospital_type
+        description: "Type of hospital (e.g. Acute Care Hospitals)."
+        data_type: string
+      - name: hospital_ownership
+        description: "Ownership classification (e.g. Proprietary, Voluntary non-profit)."
+        data_type: string
+      - name: emergency_services
+        description: "Whether the hospital offers emergency services (Yes/No)."
+        data_type: string
+      - name: birthing_friendly
+        description: "Whether the hospital meets CMS criteria for birthing friendly designation (Y or empty)."
+        data_type: string
+      - name: overall_rating
+        description: "CMS overall hospital star rating (1-5). Null when CMS has insufficient data to calculate."
+        data_type: int
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+              config:
+                severity: warn
+      - name: overall_rating_footnote
+        description: "CMS footnote code explaining why overall rating is missing or qualified. Null when no footnote applies."
+        data_type: string
+      - name: mort_measure_count
+        description: "Count of measures included in the Mortality measure group nationally."
+        data_type: int
+      - name: mort_facility_count
+        description: "Number of Mortality measures used in this hospital's star rating."
+        data_type: int
+      - name: mort_better
+        description: "Number of Mortality measures where this hospital performs better than the national value."
+        data_type: int
+      - name: mort_no_different
+        description: "Number of Mortality measures where this hospital performs no different than the national value."
+        data_type: int
+      - name: mort_worse
+        description: "Number of Mortality measures where this hospital performs worse than the national value."
+        data_type: int
+      - name: mort_footnote
+        description: "CMS footnote code for the Mortality measure group. Null when no footnote applies."
+        data_type: string
+      - name: safety_measure_count
+        description: "Count of measures included in the Safety measure group nationally."
+        data_type: int
+      - name: safety_facility_count
+        description: "Number of Safety measures used in this hospital's star rating."
+        data_type: int
+      - name: safety_better
+        description: "Number of Safety measures where this hospital performs better than the national value."
+        data_type: int
+      - name: safety_no_different
+        description: "Number of Safety measures where this hospital performs no different than the national value."
+        data_type: int
+      - name: safety_worse
+        description: "Number of Safety measures where this hospital performs worse than the national value."
+        data_type: int
+      - name: safety_footnote
+        description: "CMS footnote code for the Safety measure group. Null when no footnote applies."
+        data_type: string
+      - name: readm_measure_count
+        description: "Count of measures included in the Readmissions measure group nationally."
+        data_type: int
+      - name: readm_facility_count
+        description: "Number of Readmission measures used in this hospital's star rating."
+        data_type: int
+      - name: readm_better
+        description: "Number of Readmission measures where this hospital performs better than the national value."
+        data_type: int
+      - name: readm_no_different
+        description: "Number of Readmission measures where this hospital performs no different than the national value."
+        data_type: int
+      - name: readm_worse
+        description: "Number of Readmission measures where this hospital performs worse than the national value."
+        data_type: int
+      - name: readm_footnote
+        description: "CMS footnote code for the Readmissions measure group. Null when no footnote applies."
+        data_type: string
+      - name: pt_exp_measure_count
+        description: "Count of measures included in the Patient Experience measure group nationally."
+        data_type: int
+      - name: pt_exp_facility_count
+        description: "Number of Patient Experience measures used in this hospital's star rating."
+        data_type: int
+      - name: pt_exp_footnote
+        description: "CMS footnote code for the Patient Experience measure group. Null when no footnote applies."
+        data_type: string
+      - name: te_measure_count
+        description: "Count of measures included in the Timely and Effective Care measure group nationally."
+        data_type: int
+      - name: te_facility_count
+        description: "Number of Timely and Effective Care measures used in this hospital's star rating."
+        data_type: int
+      - name: te_footnote
+        description: "CMS footnote code for the Timely and Effective Care measure group. Null when no footnote applies."
+        data_type: string
