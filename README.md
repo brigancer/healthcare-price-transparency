@@ -337,7 +337,7 @@ dg dev
 
 ---
 
-## Known Issues / Post-Demo Backlog
+## Known Issues
 
 - **CDM code leakage in Silver:** `mrf_transform.py` left-semi join needs a `code_type` filter to exclude Charge Description Master codes not in the shoppable service list. Add: `code_1_type IN ('CPT','HCPCS','DRG','MS-DRG','TRIS-DRG','RC','APC')`.
 - **Cash price nulls in `mart_hospital_prices`:** Cash price is a separate charge type not tied to payer rows; requires a dedicated join path in the Gold model.
@@ -345,6 +345,16 @@ dg dev
 - **Hospital name truncation:** One hospital name is truncated in `mart_quality_scores` due to a character limit in the CMS source data join.
 - **`billing_class` case inconsistency:** Mixed `Facility` / `facility` casing not yet normalized in Silver.
 - **GitHub Actions:** CI/CD scaffold is in place but not yet configured for live dbt test runs on push.
+
+---
+
+## Future Work
+
+- **CMS enforcement actions:** An ingestion placeholder exists at `ingestion/cms/` for pulling CMS price transparency enforcement and penalty data. Would power a Regulatory Accountability dashboard tab.
+- **openFDA drug/device recalls:** A placeholder exists at `ingestion/fda/` for cross-referencing FDA recall data against Nashville hospital billing codes — a Safety Signals mart.
+- **Statewide expansion:** The pipeline is geography-driven; expanding from the Nashville MSA to all Tennessee hospitals requires only a county filter change, not code changes.
+- **Automated hospital seed generation:** The `nashville_msa_hospitals.csv` seed is currently maintained manually. A script to auto-generate it from the CMS registry filtered by county and hospital type would make the pipeline fully self-contained.
+- **FastAPI endpoint:** A queryable API layer over the Gold tables for programmatic price lookups.
 
 ---
 
