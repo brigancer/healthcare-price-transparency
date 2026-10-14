@@ -5,6 +5,8 @@ A data engineering capstone project analyzing hospital price transparency compli
 **Nashville Software School — Data Engineering Cohort 02**
 Rob Brigance | May 2026
 
+> **Status:** The cloud resources for this project (AWS S3, Databricks Free Edition) have been spun down since the May 2026 capstone, so the pipeline cannot be run live. The screenshots below show the pipeline's outputs.
+
 ---
 
 ## Analytical Questions
@@ -20,8 +22,8 @@ Beyond answering the analytical questions, this project was built to demonstrate
 
 - **Clean code:** All scripts follow Clean Code principles — single-responsibility functions, meaningful naming, no magic values, shared utilities in `conns.py`, and consistent linting via Ruff.
 - **No local data:** The pipeline never buffers data to disk. MRF files stream directly from hospital URLs to S3 via `boto3.upload_fileobj`. Transformation runs on Databricks. Nothing touches the local filesystem.
-- **Scalability:** Hospital scope is geography-driven from the CMS registry — adding a new market requires only a county filter change, not code changes. The Silver transform handles all MRF format variants dynamically through a single routing script.
-- **Automation-ready:** Dagster orchestrates the full pipeline as a DAG of typed assets. Each stage (ingestion → transform → dbt → dashboard) is a discrete, observable unit. GitHub Actions CI/CD is scaffolded for dbt test runs on push.
+- **Scalability:** Hospital scope is defined by Nashville MSA county criteria and maintained in a seed file — expanding to a new market means updating that seed, not changing code. The Silver transform handles all MRF format variants dynamically through a single routing script.
+- **Orchestration:** Dagster models the pipeline as software-defined assets. Python assets wrap each ingestion and transform script with explicit dependencies, and dbt models load as assets via `dagster-dbt`. Schedules, alerting, and the lineage link between the bronze assets and dbt sources are not yet implemented. GitHub Actions CI/CD is scaffolded but not yet configured.
 
 ---
 
@@ -54,7 +56,7 @@ CMS MRF Files (Hospital Price Data)         CMS Care Compare API (Quality Scores
                             ▼
                     dbt Fusion 2.0
                ┌────────────────────────┐
-               │  Silver Layer (Views)  │
+               │  Silver Layer (Tables) │
                │  - stg_mrf_prices      │
                │  - stg_quality_scores  │
                └────────────┬───────────┘
@@ -77,6 +79,26 @@ CMS MRF Files (Hospital Price Data)         CMS Care Compare API (Quality Scores
 
 ---
 
+## Screenshots
+
+**Dagster asset graph**
+
+![Dagster asset graph](docs/images/dagster_asset_graph.png)
+
+**Dashboard — Price vs. Quality**
+
+![Price vs Quality](docs/images/dashboard_tab1_price_vs_quality.png)
+
+**Dashboard — Hospital Quality Scorecard**
+
+![Quality Scorecard](docs/images/dashboard_tab2_quality_scorecard.png)
+
+**Dashboard — Price Comparison**
+
+![Price Comparison](docs/images/dashboard_tab3_price_comparison.png)
+
+---
+
 ## Tech Stack
 
 | Layer | Technology | Role |
@@ -87,8 +109,8 @@ CMS MRF Files (Hospital Price Data)         CMS Care Compare API (Quality Scores
 | Compute | Databricks Free Edition | Spark-based SQL warehouse; Unity Catalog External Volumes |
 | Transform (Silver) | Python + Databricks Connect | `mrf_transform.py` handles all MRF format complexity; writes canonical Silver table |
 | Transformation | dbt Fusion 2.0 | Silver SQL passthrough + Gold mart models |
-| Orchestration | Dagster | Asset-based pipeline orchestration |
-| CI/CD | GitHub Actions | Scaffolded; dbt test runs on push |
+| Orchestration | Dagster | Asset definitions with explicit dependencies; dbt models integrated via `dagster-dbt` (scheduling not yet implemented) |
+| CI/CD | GitHub Actions | Scaffolded; not yet configured |
 | Visualization | Power BI Desktop | Interactive 3-tab dashboard via native Databricks OAuth connector |
 
 ---
@@ -124,7 +146,7 @@ healthcare-price-transparency/
 │   │       ├── mart_hospital_prices.sql
 │   │       ├── mart_quality_scores.sql
 │   │       ├── mart_prices_vs_quality.sql
-│   │       └── schema.yml                # 25 dbt tests
+│   │       └── schema.yml                # 19 dbt tests
 │   └── dbt_project.yml
 ├── dagster_hpt/
 │   └── src/dagster_hpt/
@@ -132,6 +154,8 @@ healthcare-price-transparency/
 │       │   ├── assets.py
 │       │   └── resources.py
 │       └── definitions.py
+├── docs/
+│   └── images/                     # README screenshots
 ├── .github/
 │   └── workflows/                  # CI/CD scaffold
 ├── .env.example
@@ -143,7 +167,7 @@ healthcare-price-transparency/
 
 ## Hospital Scope
 
-The pipeline covers **17 acute care hospitals** in the Nashville MSA across 7 hospital systems. Hospital selection is geography-driven using CMS Care Compare county filters — not a hardcoded list — to remain maintainable as the registry updates.
+The pipeline covers **17 acute care hospitals** in the Nashville MSA across 7 hospital systems. Hospitals were selected using CMS Care Compare county filters and are maintained in the `nashville_msa_hospitals.csv` seed file. Auto-generating this seed from the CMS registry is listed under Future Work.
 
 **Nashville MSA counties in scope:** Davidson, Williamson, Rutherford, Wilson, Sumner, Robertson, Cheatham, Dickson, Trousdale
 
@@ -219,8 +243,8 @@ These findings were reported to the respective hospital price transparency conta
 | Table | Type | Rows | Description |
 |---|---|---|---|
 | `mrf_prices_silver` | Delta Table | 142,437 | Canonical Silver schema, all 17 hospitals, written by `mrf_transform.py` |
-| `stg_mrf_prices` | View (dbt) | — | dbt SQL passthrough over `mrf_prices_silver` |
-| `stg_quality_scores` | View (dbt) | 16 | CMS quality scores, one row per hospital |
+| `stg_mrf_prices` | Table (dbt) | — | dbt SQL passthrough over `mrf_prices_silver` |
+| `stg_quality_scores` | Table (dbt) | 16 | CMS quality scores, one row per hospital |
 | `mart_hospital_prices` | Delta Table (dbt) | 91,977 | Negotiated and cash prices by hospital and service |
 | `mart_quality_scores` | Delta Table (dbt) | 16 | Quality scorecard per hospital — 16 of 17 hospitals; Ascension Saint Thomas Midtown (440133) has no separate CMS quality scores after merger |
 | `mart_prices_vs_quality` | Delta Table (dbt) | 2,272 | Joined price and quality for scatter analysis |
@@ -238,7 +262,7 @@ Scatter chart plotting median negotiated price against CMS star rating by hospit
 Table showing star rating with conditional color formatting alongside mortality, readmission, and safety measure counts (above/below national average).
 
 **Tab 3 — Price Comparison**
-Clustered bar chart comparing negotiated vs. cash price by hospital for a selected service.
+Clustered bar chart comparing negotiated vs. cash price by hospital for a selected service. Cash price appears for only some hospitals (see Known Issues).
 
 ---
 
@@ -246,7 +270,7 @@ Clustered bar chart comparing negotiated vs. cash price by hospital for a select
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.13+
 - [`uv`](https://docs.astral.sh/uv/) package manager
 - AWS CLI with SSO configured (`aws sso login --profile <your-profile>`)
 - Databricks Free Edition account with a Personal Access Token (requires: `clusters`, `environments`, `jobs`, `sql`, `unity-catalog`, `workspace` scopes)
@@ -321,7 +345,7 @@ uv run python ingestion/mrf/mrf_ingest.py
 uv run python transform/mrf/mrf_transform.py
 ```
 
-**Step 6 — Run dbt models (Silver views → Gold tables):**
+**Step 6 — Run dbt models (Silver → Gold tables):**
 ```powershell
 dbtf run
 dbtf test
@@ -340,9 +364,10 @@ dg dev
 ## Known Issues
 
 - **CDM code leakage in Silver:** `mrf_transform.py` left-semi join needs a `code_type` filter to exclude Charge Description Master codes not in the shoppable service list. Add: `code_1_type IN ('CPT','HCPCS','DRG','MS-DRG','TRIS-DRG','RC','APC')`.
-- **Cash price nulls in `mart_hospital_prices`:** Cash price is a separate charge type not tied to payer rows; requires a dedicated join path in the Gold model.
-- **Dagster lineage gap:** Silver models use `read_files()` rather than dbt `source()` refs, so upstream S3 connections do not appear in the Dagster asset lineage graph.
-- **Hospital name truncation:** One hospital name is truncated in `mart_quality_scores` due to a character limit in the CMS source data join.
+- **Cash price mostly null in `mart_hospital_prices`:** Cash price appears for only some hospitals because it is published as a separate charge type, not tied to payer rows. Fix: join cash price separately in the Gold model.
+- **Dagster lineage gap:** `stg_quality_scores` reads the bronze volume with `read_files()`, and `stg_mrf_prices` references `mrf_prices_silver` by table name rather than through `source()`, so the bronze assets and the dbt Silver models do not connect in the Dagster lineage graph. Fix: use `source()` refs in both Silver models.
+- **Hospital name truncation:** CCN 440003 appears as "…ASCENSION SAINT THOMA" because CMS truncates facility names at 50 characters. The seed keeps the CMS name as published.
+- **Grain in `mart_prices_vs_quality`:** Standard charge columns are included in the `GROUP BY`, which can produce multiple rows per hospital/service. Fix: aggregate those columns separately and add a uniqueness test on (`ccn`, `code_1`).
 - **`billing_class` case inconsistency:** Mixed `Facility` / `facility` casing not yet normalized in Silver.
 - **GitHub Actions:** CI/CD scaffold is in place but not yet configured for live dbt test runs on push.
 
@@ -352,7 +377,8 @@ dg dev
 
 - **CMS enforcement actions:** An ingestion placeholder exists at `ingestion/cms/` for pulling CMS price transparency enforcement and penalty data. Would power a Regulatory Accountability dashboard tab.
 - **openFDA drug/device recalls:** A placeholder exists at `ingestion/fda/` for cross-referencing FDA recall data against Nashville hospital billing codes — a Safety Signals mart.
-- **Statewide expansion:** The pipeline is geography-driven; expanding from the Nashville MSA to all Tennessee hospitals requires only a county filter change, not code changes.
+- **Statewide expansion:** Expanding from the Nashville MSA to all Tennessee hospitals requires updating the hospital seed, not changing pipeline code.
+- **Complete Dagster wiring:** Connect the bronze assets to dbt sources for continuous lineage, switch `dbt run` to `dbt build` so tests run in the DAG, and add schedules and failure alerts.
 - **Automated hospital seed generation:** The `nashville_msa_hospitals.csv` seed is currently maintained manually. A script to auto-generate it from the CMS registry filtered by county and hospital type would make the pipeline fully self-contained.
 - **FastAPI endpoint:** A queryable API layer over the Gold tables for programmatic price lookups.
 
@@ -363,7 +389,7 @@ dg dev
 - **Bronze = truly raw:** MRF files are streamed directly to S3 via `boto3.upload_fileobj` with zero local buffering. No transformation occurs before landing.
 - **Python owns format complexity, dbt owns SQL transformation:** MRF files arrive in at least 6 distinct formats (true JSON, true CSV wide, true CSV long, ZIP-compressed CSV, GZIP disguised as CSV, and a national multi-hospital CSV). All format detection and normalization to the 31-column canonical schema is handled by `mrf_transform.py` using Databricks Connect. dbt Silver is a clean SQL passthrough; Gold models operate on consistent, well-typed input.
 - **Shoppable services filter in transform:** Filtering to 70 CMS-mandated shoppable service codes occurs in `mrf_transform.py` via a `left_semi` join against the `shoppable_services` seed, keeping ingestion concerns separate from transformation concerns.
-- **Geography-driven hospital discovery:** Hospital scope is determined by CMS registry county filters, not a hardcoded list, making the pipeline extensible to other markets.
+- **County-based hospital scope:** Hospitals were selected using CMS registry county filters and stored in a seed file, so extending to another market is a data change rather than a code change.
 - **dbt test severity tiers:** Silver tests use `severity: warn` for business-logic checks. Hard failures are reserved for Gold layer integrity tests.
 - **Personal AWS account for S3 and Databricks integration:** All ingestion targets a personal S3 bucket (`us-east-2`) co-located with the Databricks Free Edition workspace. This avoids cross-region data transfer costs and enables Unity Catalog External Volume registration via CloudFormation. A school-provisioned bucket was used during early development before Databricks permissions were resolved; the personal bucket is the sole production target.
 - **Canonical Silver schema:** All MRF format handlers normalize to an identical 31-column contract — 21 string columns and 10 numeric columns — enforced via explicit `CAST AS STRING` and `TRY_CAST AS DOUBLE` on every field. This is what makes it possible to union output from 6 incompatible source formats into a single Silver table that dbt can operate on cleanly.
